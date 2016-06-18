@@ -18,6 +18,8 @@ module GDSync
       @googledrive_fs = nil
       @local_fs = nil
 
+      @googledrive_config_path = _prepare_config_file
+
       @src = src.map { |_| _.encode(::Encoding::UTF_8) }
       @dest = dest_dir.encode(::Encoding::UTF_8)
       @option = option
@@ -53,7 +55,7 @@ module GDSync
           cert_path = ::File.join(::Gem.loaded_specs['google-api-client'].full_gem_path, 'lib', 'cacerts.pem')
           ENV['SSL_CERT_FILE'] = cert_path
         end
-        @googledrive_session = ::GoogleDrive.saved_session('config.json')
+        @googledrive_session = ::GoogleDrive.saved_session(@googledrive_config_path)
       end
       @googledrive_session
     end
@@ -100,6 +102,24 @@ module GDSync
     end
 
     private
+
+    def _prepare_config_file
+      path = ::File.join(::File.dirname(__FILE__), '..', 'config.json')
+      unless ::File.exist?(path)
+        # Create first 'config.json'.
+        # These id and secret are for gdsync itself, not for end user.
+        # So, the 'client_secret' can be embedded here.
+        # See https://developers.google.com/identity/protocols/OAuth2#installed
+        initial_config = {
+          client_id: '788008427451-1h3lt65qc87afhcm1fvh1h3gliut5ivq.apps.googleusercontent.com',
+          client_secret: 'Wptl4qR3JIiF0mENVqKmyIun',
+        }
+        open(path, 'wb') { |file|
+          file.write(::JSON.generate(initial_config))
+        }
+      end
+      path
+    end
 
     def _lookup_file_or_dir(path)
       if path.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
