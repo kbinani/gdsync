@@ -50,20 +50,20 @@ module GDSync
         }
       end
 
-      def copy_to(dest_dir)
-        file, io = dest_dir.create_write_io!(title)
+      def copy_to(_dest_dir, _birthtime, _mtime)
+        file, io = _dest_dir.create_write_io!(title)
         write_to(io)
         io.close
-        ::File.utime(mtime.to_time, mtime.to_time, file.path)
+        ::File.utime(_mtime.to_time, _mtime.to_time, file.path)
 
         file
       end
 
-      def update!(read_io, mtime)
+      def update!(read_io, _mtime)
         open(@path, 'wb') { |f|
           ::IO.copy_stream(read_io, f)
         }
-        ::File.utime(mtime.to_time, mtime.to_time, @path)
+        ::File.utime(_mtime.to_time, _mtime.to_time, @path)
       end
 
       def delete!
@@ -117,23 +117,23 @@ module GDSync
         @fs
       end
 
-      def create_dir!(title)
-        newpath = ::File.join(@path, title)
+      def create_dir!(_title)
+        newpath = ::File.join(@path, _title)
         ::Dir.mkdir(newpath)
         Dir.new(@fs, newpath)
       end
 
-      def create_file_with_read_io!(io, title, mtime, birthtime)
-        newfile = ::File.join(@path, title)
+      def create_file_with_read_io!(_io, _title, _mtime, _birthtime)
+        newfile = ::File.join(@path, _title)
         open(newfile, 'wb') { |f|
-          IO.copy_stream(io, f)
+          IO.copy_stream(_io, f)
         }
-        ::File.utime(mtime, mtime, newfile)
+        ::File.utime(_mtime, _mtime, newfile)
         File.new(@fs, newfile)
       end
 
-      def create_write_io!(title)
-        newfile = ::File.join(@path, title)
+      def create_write_io!(_title)
+        newfile = ::File.join(@path, _title)
         io = open(newfile, 'wb')
         file = File.new(@fs, newfile)
         return file, io

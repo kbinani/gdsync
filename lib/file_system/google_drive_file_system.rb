@@ -43,12 +43,12 @@ module GDSync
         @file.download_to_io(write_io)
       end
 
-      def copy_to(dest_dir)
+      def copy_to(_dest_dir, _birthtime, _mtime)
         request_object = {
           name: title,
-          parents: [dest_dir.id],
-          created_time: birthtime.rfc3339,
-          modified_time: mtime.rfc3339,
+          parents: [_dest_dir.id],
+          created_time: _birthtime.rfc3339,
+          modified_time: _mtime.rfc3339,
         }
         params = {
         }
@@ -57,13 +57,13 @@ module GDSync
         if file.nil?
           nil
         else
-          File.new(@fs, file, ::File.join(dest_dir.path, title))
+          File.new(@fs, file, ::File.join(_dest_dir.path, title))
         end
       end
 
-      def update!(read_io, mtime)
+      def update!(read_io, _mtime)
         request_object = {
-          modified_time: mtime.rfc3339,
+          modified_time: _mtime.rfc3339,
         }
         params = {
           upload_source: read_io,

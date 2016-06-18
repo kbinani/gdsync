@@ -11,6 +11,7 @@ opt[:verbose] = true
 opt[:dry_run] = false
 opt[:size_only] = false
 opt[:recursive] = false
+opt[:preserve_time] = false
 
 parser = OptionParser.new
 parser.banner = 'Usage: gdsync [options] SRC DEST'
@@ -20,6 +21,7 @@ parser.on('-v', '--verbose', 'increase verbosity') { |v| opt[:verbose] = true }
 parser.on('-n', '--dry-run', 'show what would have been transferred') { |v| opt[:dry_run] = true }
 parser.on('--size-only', 'skip files that match in size') { |v| opt[:size_only] = true }
 parser.on('-r', '--recursive', 'recurse into directories') { |v| opt[:recursive] = true }
+parser.on('-t', '--times', 'preserve time') { opt[:preserve_time] = true }
 parser.separator('')
 parser.separator('SRC, DEST')
 parser.separator('    Use \'googledrive://\' to specify directory on Google Drive.')

@@ -104,15 +104,18 @@ module GDSync
     # @return [AbstractFile]
     def _create_new_file(src, dest_dir)
       created = nil
+      now = DateTime.now
+      mtime = @option.preserve_time? ? src.mtime : now
+      birthtime = @option.preserve_time? ? src.birthtime : now
 
       if @option.dry_run?
         created = DryRunFileSystem::File.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
       elsif dest_dir.fs.instance_of?(src.fs.class)
         # copy file between same filesystem.
-        created = src.copy_to(dest_dir)
+        created = src.copy_to(dest_dir, birthtime, mtime)
       elsif src.fs.can_create_io_stream?
         # typically Local to Remote copy.
-        created = dest_dir.create_file_with_read_io!(src.create_read_io, src.title, src.mtime, src.birthtime)
+        created = dest_dir.create_file_with_read_io!(src.create_read_io, src.title, mtime, birthtime)
       elsif dest_dir.fs.can_create_io_stream?
         # typically Remote to Local copy.
         created, io = dest_dir.create_write_io!(src.title)
@@ -146,6 +149,8 @@ module GDSync
     end
 
     def _transfer_file(src_file, dest_dir, dest_existing_file)
+      mtime = @option.preserve_time? ? src_file.mtime : DateTime.now
+
       if dest_existing_file.nil?
         # file does not exist. so, create new file.
         created = _create_new_file(src_file, dest_dir)
@@ -167,7 +172,7 @@ module GDSync
         if @option.dry_run?
           updated = DryRunFileSystem::File.new(@dryrun_fs, dest_existing_file.path)
         elsif src_file.fs.can_create_io_stream?
-          updated = dest_existing_file.update!(src_file.create_read_io, src_file.mtime)
+          updated = dest_existing_file.update!(src_file.create_read_io, mtime)
         else
           dest_existing_file.delete!
           updated = _create_new_file(src_file, dest_dir)

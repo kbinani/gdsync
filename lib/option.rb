@@ -10,6 +10,7 @@ module GDSync
       @dry_run = options[:dry_run] || false
       @size_only = options[:size_only] || false
       @recursive = options[:recursive] || false
+      @preserve_time = options[:preserve_time] || false
     end
 
     def delete?
@@ -26,6 +27,10 @@ module GDSync
 
     def recursive?
       @recursive
+    end
+
+    def preserve_time?
+      @preserve_time
     end
 
     def should_update?(src_file, dest_file)

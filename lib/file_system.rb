@@ -77,9 +77,11 @@ module GDSync
 
       # Copy file to 'dest_dir'. self and dest_dir must be same filesystem.
       # @param dest_dir [AbstractDir]
+      # @param birthtime [DateTime]
+      # @param mtime [DateTime]
       # @pre self.fs == dest_dir.fs
       # @return  [AbstractFile]  AbstractFile object pointing to copied file.
-      def copy_to(dest_dir)
+      def copy_to(dest_dir, birthtime, mtime)
         raise 'abstract method "copy_to" called'
       end
 
