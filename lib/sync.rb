@@ -169,6 +169,10 @@ module GDSync
     def _transfer_file(src_file, dest_dir, dest_existing_file)
       mtime = @option.preserve_time? ? src_file.mtime : DateTime.now
 
+      size = src_file.size
+      return if size > @option.max_size
+      return if size < @option.min_size
+
       if dest_existing_file.nil?
         unless @option.existing?
           # file does not exist. so, create new file.

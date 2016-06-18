@@ -32,6 +32,9 @@ module GDSync
       @update = options.include?('--update')
       @dirs = options.include?('--dirs')
       @remove_source_files = options.include?('--remove-source-files')
+      @max_size = _parse_size(options, '--max-size', Float::INFINITY)
+      raise "--max-size value is invalid: #{@max_size}" if @max_size <= 0
+      @min_size = _parse_size(options, '--min-size', 0)
 
       archive = options.include?('--archive')
       if archive
@@ -82,6 +85,14 @@ module GDSync
       @remove_source_files
     end
 
+    def max_size
+      @max_size
+    end
+
+    def min_size
+      @min_size
+    end
+
     def should_update?(src_file, dest_file)
       return false if @update && dest_file.mtime > src_file.mtime
 
@@ -125,6 +136,63 @@ module GDSync
     def _validate
       # --delete does not work without -r or -d.
       raise '--delete does not work without -r.' if @delete && !@recursive
+    end
+
+    def _parse_size(options, option_name, default_value)
+      opt = options.select { |_|
+        _.start_with?(option_name)
+      }.first
+      return default_value if opt.nil?
+
+      tokens = opt.split('=')
+      raise "#{option_name} value is invalid: #{opt}" if tokens.size != 2
+      actual_option_name = tokens[0].strip
+      raise "#{option_name} value is invalid: #{opt}" if option_name != actual_option_name
+      size_string = tokens[1].strip.downcase
+
+      offset = 0
+      if size_string.end_with?('+1')
+        offset = 1
+        size_string = size_string[0...size_string.size - 2]
+      elsif size_string.end_with?('-1')
+        offset = -1
+        size_string = size_string[0...size_string.size - 2]
+      end
+
+      valid_suffix_map = {
+        'k' => 1024,
+        'kib' => 1024,
+        'm' => 1024 * 1024,
+        'mib' => 1024*1024,
+        'g' => 1024 * 1024 * 1024,
+        'gib' => 1024 * 1024 * 1024,
+        'kb' => 1000,
+        'mb' => 1000 * 1000,
+        'gb' => 1000 * 1000 * 1000
+      }
+
+      order = 1
+      valid_suffix_map.each { |suffix, o|
+        if size_string.end_with?(suffix)
+          size_string = size_string[0...(size_string.size - suffix.size)]
+          order = o
+          break
+        end
+      }
+
+      raise "#{option_name} value is invalid #{opt}" if size_string.chars.select { |ch| !(('0'..'9').to_a + ['.']).include?(ch) }.size > 0
+      raise "#{option_name} value is invalid #{opt}" if size_string.empty? && order > 1
+
+      base = 0
+      unless size_string.empty?
+        begin
+          base = Float(size_string)
+        rescue
+          raise "#{option_name} value is invalid: #{opt}"
+        end
+      end
+
+      base * order + offset
     end
   end
 end

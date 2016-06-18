@@ -35,4 +35,43 @@ class TestOption < ::Test::Unit::TestCase
     o = GDSync::Option.new(['--recursive'])
     assert_false(o.dirs?)
   end
+
+  def test_minmax_size
+    o = GDSync::Option.new(['--max-size=1.5mb-1'])
+    assert_equal(1499999, o.max_size)
+
+    o = GDSync::Option.new(['--min-size=2g+1'])
+    assert_equal(2147483649, o.min_size)
+
+    o = GDSync::Option.new(['--max-size=+1'])
+    assert_equal(1, o.max_size)
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--max-size=0'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--max-size=-1'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--max-size=1kb+2'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--min-size=kb'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--min-size=0x01kb'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--min-size=1.00.1'])
+    end
+
+    assert_raise_kind_of(RuntimeError) do
+      GDSync::Option.new(['--max-sizee=1'])
+    end
+  end
 end
