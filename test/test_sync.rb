@@ -5,21 +5,10 @@ require_relative 'test_helper.rb'
 require 'test/unit'
 require 'tmpdir'
 require_relative '../lib/sync.rb'
-
-
+require_relative '../lib/option.rb'
 
 class TestSync < ::Test::Unit::TestCase
-  OPTIONS = [
-    '--checksum',
-    '--recursive',
-    '--times',
-    '--dry-run',
-    '--existing',
-    '--ignore-existing',
-    '--delete',
-    '--ignore-times',
-    '--size-only',
-  ].freeze
+  OPTIONS = GDSync::Option::SUPPORTED_OPTIONS
 
   data do
     options = {}

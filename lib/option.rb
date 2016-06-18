@@ -3,6 +3,19 @@
 
 module GDSync
   class Option
+    SUPPORTED_OPTIONS = [
+      '--checksum',
+      '--recursive',
+      '--times',
+      '--dry-run',
+      '--existing',
+      '--ignore-existing',
+      '--delete',
+      '--ignore-times',
+      '--size-only',
+      '--update',
+    ].freeze
+
     def initialize(options)
       @verbose = options.include?('--verbose')
       @delete = options.include?('--delete')
@@ -14,6 +27,7 @@ module GDSync
       @ignore_times = options.include?('--ignore-times')
       @existing = options.include?('--existing')
       @ignore_existing = options.include?('--ignore-existing')
+      @update = options.include?('--update')
 
       archive = options.include?('--archive')
       if archive
@@ -53,6 +67,8 @@ module GDSync
     end
 
     def should_update?(src_file, dest_file)
+      return false if @update && dest_file.mtime > src_file.mtime
+
       if @checksum
         src_file.md5 != dest_file.md5
       elsif @size_only

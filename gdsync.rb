@@ -11,6 +11,7 @@ parser.on('-v', '--verbose', 'increase verbosity') { opt << '--verbose' }
 parser.on('-c', '--checksum', 'skip based on checksum, not mod-time & size') { opt << '--checksum' }
 parser.on('-a', '--archive', 'archive mode; same as -rt') { opt << '--archive' }
 parser.on('-r', '--recursive', 'recurse into directories') { opt << '--recursive' }
+parser.on('-u', '--update', 'skip files that are newer on the receiver') { opt << '--update' }
 parser.on('-t', '--times', 'preserve time') { opt << '--times' }
 parser.on('-n', '--dry-run', 'show what would have been transferred') { opt << '--dry-run' }
 parser.on('--existing', 'skip creating new files on receiver') { opt << '--existing' }

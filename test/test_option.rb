@@ -8,17 +8,8 @@ require_relative '../lib/option.rb'
 
 class TestOption < ::Test::Unit::TestCase
   def test_initialize
-    options = [
-      '--checksum',
-      '--recursive',
-      '--times',
-      '--dry-run',
-      '--existing',
-      '--ignore-existing',
-      '--delete',
-      '--ignore-times',
-      '--size-only',
-    ]
+    options = GDSync::Option::SUPPORTED_OPTIONS
+
     for num_options in (0..options.size) do
       options.combination(num_options).each { |opts|
         if opts.include?('--delete') && !opts.include?('--recursive')
