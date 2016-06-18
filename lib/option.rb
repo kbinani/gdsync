@@ -13,6 +13,7 @@ module GDSync
       @preserve_time = options[:preserve_time] || false
       @ignore_times = options[:ignore_times] || false
       @existing = options[:existing] || false
+      @ignore_existing = options[:ignore_existing]
 
       archive = options[:archive] || false
       if archive
@@ -43,6 +44,10 @@ module GDSync
 
     def existing?
       @existing
+    end
+
+    def ignore_existing?
+      @ignore_existing
     end
 
     def should_update?(src_file, dest_file)

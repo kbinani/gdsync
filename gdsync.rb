@@ -15,6 +15,7 @@ opt[:preserve_time] = false
 opt[:archive] = false
 opt[:ignore_times] = false
 opt[:existing] = false
+opt[:ignore_existing] = false
 
 parser = OptionParser.new
 parser.banner = 'Usage: gdsync [options] SRC DEST'
@@ -25,6 +26,7 @@ parser.on('-r', '--recursive', 'recurse into directories') { |v| opt[:recursive]
 parser.on('-t', '--times', 'preserve time') { opt[:preserve_time] = true }
 parser.on('-n', '--dry-run', 'show what would have been transferred') { |v| opt[:dry_run] = true }
 parser.on('--existing', 'skip creating new files on receiver') { opt[:existing] = true }
+parser.on('--ignore-existing', 'skip updating files that exist on receiver') { opt[:ignore_existing] = true }
 parser.on('--delete', 'delete extraneous files from dest dirs') { |v| opt[:delete] = true }
 parser.on('-I', '--ignore-times', 'don\'t skip files that match size and time') { opt[:ignore_times] = true }
 parser.on('--size-only', 'skip files that match in size') { |v| opt[:size_only] = true }

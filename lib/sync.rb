@@ -41,6 +41,11 @@ module GDSync
           if src.is_dir?
             if @option.recursive?
               dest = _lookup_dir(@dest)
+
+              if @option.ignore_existing && !dest.nil?
+                next
+              end
+
               if !dest.nil? && !src.path.end_with?('/') && !@option.existing?
                 dest = _create_new_dir(src.title, dest)
                 raise "cannot create directory '#{::File.join(@dest, src.title)}'" if dest.nil?
@@ -163,27 +168,29 @@ module GDSync
           end
         end
       else
-        # file already exists.
-        updated = nil
+        unless @option.ignore_existing?
+          # file already exists.
+          updated = nil
 
-        unless @option.should_update?(src_file, dest_existing_file)
-          @option.log_skip(dest_existing_file)
-          return
-        end
+          unless @option.should_update?(src_file, dest_existing_file)
+            @option.log_skip(dest_existing_file)
+            return
+          end
 
-        if @option.dry_run?
-          updated = DryRunFileSystem::File.new(@dryrun_fs, dest_existing_file.path)
-        elsif src_file.fs.can_create_io_stream?
-          updated = dest_existing_file.update!(src_file.create_read_io, mtime)
-        else
-          dest_existing_file.delete!
-          updated = _create_new_file(src_file, dest_dir)
-        end
+          if @option.dry_run?
+            updated = DryRunFileSystem::File.new(@dryrun_fs, dest_existing_file.path)
+          elsif src_file.fs.can_create_io_stream?
+            updated = dest_existing_file.update!(src_file.create_read_io, mtime)
+          else
+            dest_existing_file.delete!
+            updated = _create_new_file(src_file, dest_dir)
+          end
 
-        if updated.nil?
-          @option.error("cannot update file '#{dest_existing_file.path}'")
-        else
-          @option.log_updated(updated)
+          if updated.nil?
+            @option.error("cannot update file '#{dest_existing_file.path}'")
+          else
+            @option.log_updated(updated)
+          end
         end
       end
     end
