@@ -78,6 +78,29 @@ module GDSync
       end
     end
 
+    # @param src [AbstractFile]
+    # @param  dest_dir [AbstractDir]
+    # @param option [Option]
+    def _create_new_file(src, dest_dir, option)
+      created = nil
+
+      if dest_dir.fs.instance_of?(src.fs.class)
+        # copy file between same filesystem.
+        created = src.copy_to(dest_dir)
+      elsif src.fs.can_create_io_stream?
+        # typically Local to Remote copy.
+        created = dest_dir.create_file_with_read_io!(src.create_read_io, src.title, src.mtime, src.birthtime)
+      elsif dest_dir.fs.can_create_io_stream?
+        # typically Remote to Local copy.
+        created, io = dest_dir.create_write_io!(src.title)
+        src.write_to(io)
+      else
+        option.error('filesystem does not provide any file copy function')
+      end
+
+      created
+    end
+
     def _transfer_directory_contents_recursive(src_dir, dest_dir, option)
       # list existing dirs/files in the 'dest_dir'.
       existing_dirs = []
@@ -90,75 +113,65 @@ module GDSync
         end
       }
 
-      src_dir.entries { |entry|
-        if entry.is_dir?
+      src_dir.entries { |src|
+        if src.is_dir?
           # search dir in 'dest_dir' with same title.
           dir = existing_dirs.select { |_|
-            _.title == entry.title
+            _.title == src.title
           }.first
 
           if dir.nil?
             # dir not found.
-            dir = dest_dir.create_dir!(entry.title)
+            dir = dest_dir.create_dir!(src.title)
             if dir.nil?
-              option.error("cannot create subdirectory '#{entry.path}'")
+              option.error("cannot create subdirectory '#{src.path}'")
             else
               option.log_created(dir)
             end
           else
             existing_dirs.delete_if { |_|
-              _.title == entry.title
+              _.title == src.title
             }
           end
 
           unless dir.nil?
-            _transfer_directory_contents_recursive(entry, dir, option)
+            _transfer_directory_contents_recursive(src, dir, option)
           end
         else
           # search file in 'dest_dir' with same title.
           file = existing_files.select { |_|
-            _.title == entry.title
+            _.title == src.title
           }.first
 
-          exists = false
+          if file.nil?
+            # file does not exist. so, create new file.
+            created = _create_new_file(src, dest_dir, option)
 
-          unless file.nil?
-            exists = true
+            if created.nil?
+              option.error("cannot create file '#{::File.join(dest_dir.path, src.title)}'")
+            else
+              option.log_created(created)
+            end
+          else
+            # file already exists.
+            updated = nil
 
-            existing_files.delete_if { |_|
-              _.title == entry.title
-            }
-
-            unless option.should_update?(entry, file)
+            unless option.should_update?(src, file)
               option.log_skip(file)
               next
             end
 
-            # if already file exists in 'dest_dir', delete it first.
-            file.delete!
-          end
-
-          created = nil
-
-          if dest_dir.fs.instance_of?(entry.fs.class)
-            # copy file between same filesystem.
-            created = entry.copy_to(dest_dir)
-          elsif entry.fs.can_create_io_stream?
-            # typically Local to Remote copy.
-            created = dest_dir.create_file_with_read_io!(entry.create_read_io, entry.title, entry.mtime, entry.birthtime)
-          elsif dest_dir.fs.can_create_io_stream?
-            # typically Remote to Local copy.
-            created, io = dest_dir.create_write_io!(entry.title)
-            entry.write_to(io)
-          else
-            option.error('filesystem does not provide any file copy function')
-          end
-
-          unless created.nil?
-            if exists
-              option.log_updated(created)
+            if src.fs.can_create_io_stream?
+              updated = file.update!(src.create_read_io, src.mtime)
             else
-              option.log_created(created)
+              file.delete!
+              updated = _create_new_file(src, dest_dir, option)
+            end
+
+            if updated.nil?
+              option.error("cannot update file '#{file.path}'")
+            else
+              option.log_updated(updated)
             end
           end
         end

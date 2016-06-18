@@ -54,8 +54,16 @@ module GDSync
         file, io = dest_dir.create_write_io!(title)
         write_to(io)
         io.close
+        ::File.utime(mtime.to_time, mtime.to_time, file.path)
 
         file
+      end
+
+      def update!(read_io, mtime)
+        open(@path, 'wb') { |f|
+          ::IO.copy_stream(read_io, f)
+        }
+        ::File.utime(mtime.to_time, mtime.to_time, @path)
       end
 
       def delete!

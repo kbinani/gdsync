@@ -4,8 +4,9 @@
 module GDSync
   class GoogleDriveFileSystem < FileSystem
     class File < AbstractFile
-      # @param  {GoogleDriveFileSystem}  fs
-      # @param  {GoogleDrive::File} gd_file
+      # @param  [GoogleDriveFileSystem]  fs
+      # @param  [GoogleDrive::File] gd_file
+      # @param  [String] path
       def initialize(fs, gd_file, path)
         @fs = fs
         @file = gd_file
@@ -58,6 +59,18 @@ module GDSync
         end
       end
 
+      def update!(read_io, mtime)
+        request_object = {
+          modified_time: mtime.rfc3339,
+        }
+        params = {
+          upload_source: read_io,
+        }
+        api_file = @fs.session.drive.update_file(@file.id, request_object, params)
+        file = @fs.session.wrap_api_file(api_file)
+        File.new(@fs, file, @path)
+      end
+
       def delete!
         @file.delete
       end
@@ -72,6 +85,9 @@ module GDSync
     end
 
     class Dir < AbstractDir
+      # @param  [GoogleDriveFileSystem]  fs
+      # @param  [GoogleDrive::Collection]  gd_collection
+      # @param  [String] path
       def initialize(fs, gd_collection, path)
         @fs = fs
         @collection = gd_collection
@@ -146,11 +162,14 @@ module GDSync
         @path
       end
 
+      # Get Google Drive file id.
+      # @return [String]
       def id
         @collection.id
       end
     end
 
+    # @param [GoogleDrive::Session] gd_session
     def initialize(gd_session)
       @session = gd_session
     end
@@ -159,6 +178,8 @@ module GDSync
       false
     end
 
+    # Get GoogleDrive::Session object.
+    # @return [GoogleDrive::Session]
     def session
       @session
     end
