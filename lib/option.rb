@@ -7,6 +7,7 @@ module GDSync
       @verbose = options[:verbose] || true
       @delete = options[:delete] || false
       @checksum = options[:checksum] || false
+      @dry_run = options[:dry_run] || false
     end
 
     def delete?
@@ -15,6 +16,10 @@ module GDSync
 
     def verbose?
       @verbose
+    end
+
+    def dry_run?
+      @dry_run
     end
 
     def should_update?(src_file, dest_file)

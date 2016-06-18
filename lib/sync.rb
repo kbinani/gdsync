@@ -5,6 +5,7 @@ require 'google_drive'
 require_relative 'file_system'
 require_relative 'file_system/google_drive_file_system'
 require_relative 'file_system/local_file_system'
+require_relative 'file_system/dry_run'
 require_relative 'option'
 
 module GDSync
@@ -23,6 +24,7 @@ module GDSync
       @session = ::GoogleDrive.saved_session('config.json')
       @googledrive_fs = GoogleDriveFileSystem.new(@session)
       @local_fs = LocalFileSystem.new
+      @dryrun_fs = DryRunFileSystem.new
 
       @src = _lookup_dir(src_dir)
       @option = option
@@ -84,7 +86,9 @@ module GDSync
     def _create_new_file(src, dest_dir, option)
       created = nil
 
-      if dest_dir.fs.instance_of?(src.fs.class)
+      if option.dry_run?
+        created = DryRunFileSystem::File.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
+      elsif dest_dir.fs.instance_of?(src.fs.class)
         # copy file between same filesystem.
         created = src.copy_to(dest_dir)
       elsif src.fs.can_create_io_stream?
@@ -122,7 +126,12 @@ module GDSync
 
           if dir.nil?
             # dir not found.
-            dir = dest_dir.create_dir!(src.title)
+            if option.dry_run?
+              dir = DryRunFileSystem::Dir.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
+            else
+              dir = dest_dir.create_dir!(src.title)
+            end
+
             if dir.nil?
               option.error("cannot create subdirectory '#{src.path}'")
             else
@@ -156,12 +165,18 @@ module GDSync
             # file already exists.
             updated = nil
 
+            existing_files.delete_if { |_|
+              _.title == src.title
+            }
+
             unless option.should_update?(src, file)
               option.log_skip(file)
               next
             end
 
-            if src.fs.can_create_io_stream?
+            if option.dry_run?
+              updated = DryRunFileSystem::File.new(@dryrun_fs, file.path)
+            elsif src.fs.can_create_io_stream?
               updated = file.update!(src.create_read_io, src.mtime)
             else
               file.delete!
@@ -179,11 +194,11 @@ module GDSync
 
       if option.delete?
         existing_dirs.each { |dir|
-          dir.delete!
+          dir.delete! unless option.dry_run?
           option.log_deleted(dir)
         }
         existing_files.each { |file|
-          file.delete!
+          file.delete! unless option.dry_run?
           option.log_deleted(file)
         }
       else
