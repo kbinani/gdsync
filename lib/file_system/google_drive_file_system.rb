@@ -3,6 +3,8 @@
 
 module GDSync
   class GoogleDriveFileSystem < FileSystem
+    URL_SCHEMA = 'googledrive://'
+
     class File < AbstractFile
       # @param  [GoogleDriveFileSystem]  fs
       # @param  [GoogleDrive::File] gd_file
@@ -176,6 +178,58 @@ module GDSync
 
     def can_create_io_stream?
       false
+    end
+
+    def find(file)
+      unless file.start_with?(URL_SCHEMA)
+        return nil
+      end
+
+      if file === URL_SCHEMA
+        return Dir.new(self, @session.root_collection, URL_SCHEMA)
+      end
+
+      if file.end_with?('/')
+        file = file.slice(0, file.size - 1)
+      end
+      path_elements = file.split(URL_SCHEMA)[1].split('/')
+      path = URL_SCHEMA
+
+      collection = @session.root_collection
+      for path_element in path_elements do
+        path = ::File.join(path, path_element)
+
+        # find directory first.
+        child = collection.subcollection_by_title(path_element)
+        unless child.nil?
+          child = nil if child.explicitly_trashed
+        end
+
+        if file === path
+          if child.nil?
+            # directory not found. then search file
+            child = collection.file_by_title(path_element)
+            unless child.nil?
+              child = nil if child.explicitly_trashed
+            end
+            if child.nil?
+              return nil
+            else
+              return File.new(self, child, path)
+            end
+          else
+            return Dir.new(self, child, path)
+          end
+        else
+          if child.nil?
+            return nil
+          else
+            collection = child
+          end
+        end
+      end
+
+      nil
     end
 
     # Get GoogleDrive::Session object.

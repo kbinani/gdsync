@@ -151,5 +151,17 @@ module GDSync
     def can_create_io_stream?
       true
     end
+
+    def find(path)
+      if ::File.exist?(path)
+        if ::File.directory?(path)
+          Dir.new(self, path)
+        else
+          File.new(self, path)
+        end
+      else
+        nil
+      end
+    end
   end
 end

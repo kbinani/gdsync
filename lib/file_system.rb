@@ -153,5 +153,12 @@ module GDSync
     def can_create_io_stream?
       raise 'abstract method "can_create_read_io?" called'
     end
+
+    # Find file or directory.
+    # @param path [String]
+    # @return [AbstractFile] or [AbstractDir] or nil
+    def find(path)
+      raise 'abstract method "find" called'
+    end
   end
 end

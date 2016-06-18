@@ -10,9 +10,10 @@ require_relative 'option'
 
 module GDSync
   class Sync
-    GOOGLE_DRIVE_SCHEMA = 'googledrive://'
-
-    def initialize(src_dir, dest_dir, option)
+    # @param src [Array]
+    # @param dest [String]
+    # @param option [Option]
+    def initialize(src, dest_dir, option)
       if Gem.win_platform?
         # "OpenSSL::X509::DEFAULT_CERT_FILE" may point to invalid location,
         # typically depending on who build the RubyInstaller. (ex. "C:/Users/(someone)/Projects/knap-build/...")
@@ -26,67 +27,85 @@ module GDSync
       @local_fs = LocalFileSystem.new
       @dryrun_fs = DryRunFileSystem.new
 
-      @src = _lookup_dir(src_dir)
+      @src = src
+      @dest = dest_dir
       @option = option
-
-      if src_dir.end_with?('/')
-        @dest = _lookup_dir(dest_dir, true)
-      else
-        @dest = _lookup_dir(::File.join(dest_dir, ::File.basename(src_dir)), true)
-      end
     end
 
     def run
-      _transfer_directory_contents_recursive(@src, @dest, @option)
+      @src.each { |_|
+        src = _lookup_file_or_dir(_)
+        if src.nil?
+          raise "file or directory '#{_}' not found"
+        else
+          if src.is_dir?
+            if @option.recursive?
+              dest = _lookup_dir(@dest)
+              if !dest.nil? && !src.path.end_with?('/')
+                dest = _create_new_dir(src.title, dest)
+                raise "cannot create directory '#{::File.join(@dest, src.title)}'" if dest.nil?
+              end
+              if dest.nil?
+                raise "cannot find dest directory"
+              else
+                _transfer_directory_contents_recursive(src, dest)
+              end
+            else
+              @option.log_skip(src)
+            end
+          else
+            dest = _lookup_dir(@dest)
+            if dest.nil?
+              raise "cannot find dest directory"
+            else
+              dest_existing_file = _lookup_file_or_dir(::File.join(dest.path, src.title))
+              _transfer_file(src, dest, dest_existing_file)
+            end
+          end
+        end
+      }
     end
 
     private
 
-    def _lookup_dir(dir, create_if_not_exists = false)
-      if dir.start_with?(GOOGLE_DRIVE_SCHEMA)
-        if dir === GOOGLE_DRIVE_SCHEMA
-          return GoogleDriveFileSystem::Dir.new(@googledrive_fs, @session.root_collection, GOOGLE_DRIVE_SCHEMA)
-        end
-
-        path_elements = dir.split(GOOGLE_DRIVE_SCHEMA)[1].split('/')
-        collection = @session.root_collection
-        for path_element in path_elements do
-          child = collection.subcollection_by_title(path_element)
-          if child.explicitly_trashed
-            child = nil
-          end
-          if child.nil?
-            if create_if_not_exists
-              child = collection.create_subcollection(path_element)
-              if child.nil?
-                raise "Error: cannot create '#{path_element}' directory"
-              end
-            else
-              raise 'Error: cannot find destination'
-            end
-          end
-          collection = child
-        end
-
-        return GoogleDriveFileSystem::Dir.new(@googledrive_fs, collection, dir)
+    # @param file [String]
+    # @return [AbstractFile or AbstractDir]
+    def _lookup_file_or_dir(file)
+      if file.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
+        @googledrive_fs.find(file)
       else
-        if create_if_not_exists and !::File.exist?(dir)
-          ::FileUtils.mkdir_p(dir)
+        @local_fs.find(file)
+      end
+    end
+
+    # @param dir [String]
+    def _lookup_dir(dir)
+      d = nil
+      
+      if dir.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
+        d = @googledrive_fs.find(dir)
+      else
+        d = @local_fs.find(dir)
+      end
+      
+      if d.nil?
+        nil
+      else
+        if d.is_dir?
+          d
+        else
+          nil
         end
-        unless ::File.directory?(dir)
-          raise "'#{dir}' is not a directory"
-        end
-        LocalFileSystem::Dir.new(@local_fs, dir)
       end
     end
 
     # @param src [AbstractFile]
     # @param  dest_dir [AbstractDir]
-    # @param option [Option]
-    def _create_new_file(src, dest_dir, option)
+    # @return [AbstractFile]
+    def _create_new_file(src, dest_dir)
       created = nil
 
-      if option.dry_run?
+      if @option.dry_run?
         created = DryRunFileSystem::File.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
       elsif dest_dir.fs.instance_of?(src.fs.class)
         # copy file between same filesystem.
@@ -99,13 +118,70 @@ module GDSync
         created, io = dest_dir.create_write_io!(src.title)
         src.write_to(io)
       else
-        option.error('filesystem does not provide any file copy function')
+        @option.error('filesystem does not provide any file copy function')
       end
 
       created
     end
 
-    def _transfer_directory_contents_recursive(src_dir, dest_dir, option)
+    # @param title [String]
+    # @param dest_dir [AbstractDir]
+    # @return [AbstractDir]
+    def _create_new_dir(title, dest_dir)
+      dir = nil
+
+      if @option.dry_run?
+        dir = DryRunFileSystem::Dir.new(@dryrun_fs, ::File.join(dest_dir.path, title))
+      else
+        dir = dest_dir.create_dir!(title)
+      end
+
+      if dir.nil?
+        @option.error("cannot create subdirectory '#{::File.join(dest_dir.path, title)}'")
+      else
+        @option.log_created(dir)
+      end
+
+      dir
+    end
+
+    def _transfer_file(src_file, dest_dir, dest_existing_file)
+      if dest_existing_file.nil?
+        # file does not exist. so, create new file.
+        created = _create_new_file(src_file, dest_dir)
+
+        if created.nil?
+          @option.error("cannot create file '#{::File.join(dest_dir.path, src_file.title)}'")
+        else
+          @option.log_created(created)
+        end
+      else
+        # file already exists.
+        updated = nil
+
+        unless @option.should_update?(src_file, dest_existing_file)
+          @option.log_skip(dest_existing_file)
+          return
+        end
+
+        if @option.dry_run?
+          updated = DryRunFileSystem::File.new(@dryrun_fs, dest_existing_file.path)
+        elsif src_file.fs.can_create_io_stream?
+          updated = dest_existing_file.update!(src_file.create_read_io, src_file.mtime)
+        else
+          dest_existing_file.delete!
+          updated = _create_new_file(src_file, dest_dir)
+        end
+
+        if updated.nil?
+          @option.error("cannot update file '#{dest_existing_file.path}'")
+        else
+          @option.log_updated(updated)
+        end
+      end
+    end
+
+    def _transfer_directory_contents_recursive(src_dir, dest_dir)
       # list existing dirs/files in the 'dest_dir'.
       existing_dirs = []
       existing_files = []
@@ -124,27 +200,19 @@ module GDSync
             _.title == src.title
           }.first
 
-          if dir.nil?
-            # dir not found.
-            if option.dry_run?
-              dir = DryRunFileSystem::Dir.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
-            else
-              dir = dest_dir.create_dir!(src.title)
-            end
+          existing_dirs.delete_if { |_| _.title == src.title }
 
-            if dir.nil?
-              option.error("cannot create subdirectory '#{src.path}'")
-            else
-              option.log_created(dir)
-            end
-          else
-            existing_dirs.delete_if { |_|
-              _.title == src.title
-            }
+          unless @option.recursive?
+            @option.log_skip(src)
+            next
+          end
+
+          if dir.nil?
+            dir = _create_new_dir(src.title, dest_dir)
           end
 
           unless dir.nil?
-            _transfer_directory_contents_recursive(src, dir, option)
+            _transfer_directory_contents_recursive(src, dir)
           end
         else
           # search file in 'dest_dir' with same title.
@@ -152,61 +220,27 @@ module GDSync
             _.title == src.title
           }.first
 
-          if file.nil?
-            # file does not exist. so, create new file.
-            created = _create_new_file(src, dest_dir, option)
+          existing_files.delete_if { |_| _.title == src.title }
 
-            if created.nil?
-              option.error("cannot create file '#{::File.join(dest_dir.path, src.title)}'")
-            else
-              option.log_created(created)
-            end
-          else
-            # file already exists.
-            updated = nil
-
-            existing_files.delete_if { |_|
-              _.title == src.title
-            }
-
-            unless option.should_update?(src, file)
-              option.log_skip(file)
-              next
-            end
-
-            if option.dry_run?
-              updated = DryRunFileSystem::File.new(@dryrun_fs, file.path)
-            elsif src.fs.can_create_io_stream?
-              updated = file.update!(src.create_read_io, src.mtime)
-            else
-              file.delete!
-              updated = _create_new_file(src, dest_dir, option)
-            end
-
-            if updated.nil?
-              option.error("cannot update file '#{file.path}'")
-            else
-              option.log_updated(updated)
-            end
-          end
+          _transfer_file(src, dest_dir, file)
         end
       }
 
-      if option.delete?
+      if @option.delete?
         existing_dirs.each { |dir|
-          dir.delete! unless option.dry_run?
-          option.log_deleted(dir)
+          dir.delete! unless @option.dry_run?
+          @option.log_deleted(dir)
         }
         existing_files.each { |file|
-          file.delete! unless option.dry_run?
-          option.log_deleted(file)
+          file.delete! unless @option.dry_run?
+          @option.log_deleted(file)
         }
       else
         existing_dirs.each { |dir|
-          option.log_extraneous(dir)
+          @option.log_extraneous(dir)
         }
         existing_files.each { |file|
-          option.log_extraneous(file)
+          @option.log_extraneous(file)
         }
       end
     end

@@ -9,6 +9,7 @@ module GDSync
       @checksum = options[:checksum] || false
       @dry_run = options[:dry_run] || false
       @size_only = options[:size_only] || false
+      @recursive = options[:recursive] || false
     end
 
     def delete?
@@ -21,6 +22,10 @@ module GDSync
 
     def dry_run?
       @dry_run
+    end
+
+    def recursive?
+      @recursive
     end
 
     def should_update?(src_file, dest_file)
