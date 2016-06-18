@@ -15,6 +15,7 @@ module GDSync
       '--size-only',
       '--update',
       '--dirs',
+      '--remove-source-files',
     ].freeze
 
     def initialize(options)
@@ -30,6 +31,7 @@ module GDSync
       @ignore_existing = options.include?('--ignore-existing')
       @update = options.include?('--update')
       @dirs = options.include?('--dirs')
+      @remove_source_files = options.include?('--remove-source-files')
 
       archive = options.include?('--archive')
       if archive
@@ -74,6 +76,10 @@ module GDSync
       else
         @dirs
       end
+    end
+
+    def remove_source_files?
+      @remove_source_files
     end
 
     def should_update?(src_file, dest_file)

@@ -17,6 +17,7 @@ parser.on('-t', '--times', 'preserve time') { opt << '--times' }
 parser.on('-n', '--dry-run', 'show what would have been transferred') { opt << '--dry-run' }
 parser.on('--existing', 'skip creating new files on receiver') { opt << '--existing' }
 parser.on('--ignore-existing', 'skip updating files that exist on receiver') { opt << '--ignore-existing' }
+parser.on('--remove-source-files', 'sender removes synchronized files (non-dir)') { opt << '--remove-source-files' }
 parser.on('--delete', 'delete extraneous files from dest dirs') { opt << '--delete' }
 parser.on('-I', '--ignore-times', 'don\'t skip files that match size and time') { opt << '--ignore-times' }
 parser.on('--size-only', 'skip files that match in size') { opt << '--size-only' }

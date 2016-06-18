@@ -58,68 +58,84 @@ class TestSync < ::Test::Unit::TestCase
 
     # Create copy of 'test/fixtures' directory.
     # The contents in it will be edited for testing purpouse (this is the reason why we create a copy of it).
-    fixtures = File.join(workdir, "fixtures#{with_trailing_slash ? '/' : ''}")
-    _rsync('test/fixtures', workdir, ['-a'])
+    rsync_fixtures = File.join(workdir, 'rsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
+    FileUtils.mkdir_p(rsync_fixtures)
+    _rsync('test/fixtures/', rsync_fixtures, ['-a'])
+
+    gdsync_fixtures = File.join(workdir, 'gdsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
+    FileUtils.mkdir_p(gdsync_fixtures)
+    _rsync('test/fixtures/', gdsync_fixtures, ['-a'])
 
     # Run rsync(1) to create *expected* directory structure.
-    expected = File.join(workdir, 'expected')
-    Dir.mkdir(expected)
-    _rsync(fixtures, expected, rsync_options)
+    rsync_dest = File.join(workdir, 'rsync_dest')
+    Dir.mkdir(rsync_dest)
+    _rsync(rsync_fixtures, rsync_dest, rsync_options)
 
     # Create target directory.
-    dest = File.join(workdir, 'dest')
-    Dir.mkdir(dest)
+    gdsync_dest = File.join(workdir, 'gdsync_dest')
+    Dir.mkdir(gdsync_dest)
 
     # Print what options are being tested.
     prefix = "#{workdir}/"
-    cmd = "rsync #{rsync_options.join(' ')} #{fixtures.split(prefix)[1]} #{dest.split(prefix)[1]}"
+    cmd = "rsync #{rsync_options.join(' ')} #{gdsync_fixtures.split(prefix)[1]} #{gdsync_dest.split(prefix)[1]}"
     puts cmd if VERBOSE
 
     # Run GDSync::Sync#run
     assert_nothing_raised do
-      sync = GDSync::Sync.new([fixtures], dest, opt)
+      sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
       sync.run
 
       if VERBOSE
         _separator
-        puts "FIXTURE(after#1):"
-        _tree(File.join(workdir, 'fixtures'))
-        puts "EXPECTED(after#1):"
-        _tree(File.join(workdir, 'expected'))
-        puts "ACTUAL(after#1):"
-        _tree(File.join(workdir, 'dest'))
+        puts "RSYNC_SRC(after#1):"
+        _tree(rsync_fixtures)
+        puts "RSYNC_DEST(after#1):"
+        _tree(rsync_dest)
+        puts "GDSYNC_SRC(after#1):"
+        _tree(gdsync_fixtures)
+        puts "GDSYNC_DEST(after#1):"
+        _tree(gdsync_dest)
       end
     end
 
     # Compare directory structure between 'sync.run'ed dir and 'rsync'ed dir.
-    _assert_dir_tree_equals(expected, dest, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum)
 
     # Modify 'fixtures'.
-    FileUtils.rm_r(File.join(workdir, 'fixtures', 'delete_local'))
-    FileUtils.remove(File.join(workdir, 'fixtures', 'delete_local_file.txt'))
+    [rsync_fixtures, gdsync_fixtures].each { |d|
+      FileUtils.rm_rf(File.join(d, 'delete_local'))
+      FileUtils.rm_rf(File.join(d, 'delete_local_file.txt'))
 
-    edited_local_file = File.join(workdir, 'fixtures', 'sub', 'edited_local_file.txt')
-    open(edited_local_file, 'wb') { |f|
-      f << 'a'
-    }
+      edited_local_file = File.join(d, 'sub', 'edited_local_file.txt')
+      if File.exist?(edited_local_file)
+        open(edited_local_file, 'wb') { |f|
+          f << 'a'
+        }
+      end
 
-    edited_but_same_mtime_local_file = File.join(workdir, 'fixtures', 'sub', 'edited_but_same_mtime_local_file.txt')
-    mtime = File.mtime(edited_but_same_mtime_local_file)
-    open(edited_but_same_mtime_local_file, 'wb') { |f|
-      f << 'c'
-    }
-    File.utime(mtime, mtime, edited_but_same_mtime_local_file)
+      edited_but_same_mtime_local_file = File.join(d, 'sub', 'edited_but_same_mtime_local_file.txt')
+      if File.exist?(edited_but_same_mtime_local_file)
+        mtime = File.mtime(edited_but_same_mtime_local_file)
+        open(edited_but_same_mtime_local_file, 'wb') { |f|
+          f << 'c'
+        }
+        File.utime(mtime, mtime, edited_but_same_mtime_local_file)
+      end
 
-    edited_but_same_mtime_and_same_size_local_file = File.join(workdir, 'fixtures', 'sub', 'edited_but_same_mtime_and_same_size_local_file.txt')
-    mtime = File.mtime(edited_but_same_mtime_and_same_size_local_file)
-    open(edited_but_same_mtime_local_file, 'wb') { |f|
-      f.write('A')
+      edited_but_same_mtime_and_same_size_local_file = File.join(d, 'sub', 'edited_but_same_mtime_and_same_size_local_file.txt')
+      if File.exist?(edited_but_same_mtime_and_same_size_local_file)
+        mtime = File.mtime(edited_but_same_mtime_and_same_size_local_file)
+        open(edited_but_same_mtime_local_file, 'wb') { |f|
+          f.write('A')
+        }
+        File.utime(mtime, mtime, edited_but_same_mtime_and_same_size_local_file)
+      end
     }
-    File.utime(mtime, mtime, edited_but_same_mtime_and_same_size_local_file)
 
     # Modify 'dest' and 'expected'
     mid = with_trailing_slash ? '' : '/fixtures'
-    [expected, dest].each { |d|
+    [rsync_dest, gdsync_dest].each { |d|
       FileUtils.rm_rf(File.join("#{d}#{mid}", 'delete_remote'))
       FileUtils.rm_rf(File.join("#{d}#{mid}", 'delete_remote_file.txt'))
 
@@ -150,26 +166,29 @@ class TestSync < ::Test::Unit::TestCase
     }
 
     # Second run rsync
-    _rsync(fixtures, expected, rsync_options)
+    _rsync(rsync_fixtures, rsync_dest, rsync_options)
 
     # Second run GDSync::Sync#run
     assert_nothing_raised do
-      sync = GDSync::Sync.new([fixtures], dest, opt)
+      sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
       sync.run
 
       if VERBOSE
         _separator
-        puts "FIXTURE(after#2):"
-        _tree(File.join(workdir, 'fixtures'))
-        puts "EXPECTED(after#2):"
-        _tree(File.join(workdir, 'expected'))
-        puts "ACTUAL(after#2):"
-        _tree(File.join(workdir, 'dest'))
+        puts "RSYNC_SRC(after#2):"
+        _tree(rsync_fixtures)
+        puts "RSYNC_DEST(after#2):"
+        _tree(rsync_dest)
+        puts "GDSYNC_SRC(after#2):"
+        _tree(gdsync_fixtures)
+        puts "GDSYNC_DEST(after#2):"
+        _tree(gdsync_dest)
       end
     end
 
     # Second compare
-    _assert_dir_tree_equals(expected, dest, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum)
   end
 
   def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum)
@@ -187,14 +206,14 @@ class TestSync < ::Test::Unit::TestCase
         _assert_dir_tree_equals(epath, apath, assert_mtime, assert_checksum)
       else
         assert_false(File.directory?(apath))
-        assert_equal(File.mtime(epath), File.mtime(apath)) if assert_mtime
+        assert_true((File.mtime(epath).to_i - File.mtime(apath).to_i).abs <= 1) if assert_mtime
         assert_equal(::Digest::MD5.file(epath).to_s, ::Digest::MD5.file(apath).to_s) if assert_checksum
       end
     end
   end
 
   def _rsync(src, dest, options)
-    cmd = "rsync #{options.join(' ')} #{src} #{dest} > /dev/null"
+    cmd = "rsync #{options.join(' ')} #{src} #{dest} >/dev/null"
     raise "#{cmd} failed" unless system(cmd)
   end
 

@@ -250,6 +250,11 @@ module GDSync
           existing_files.delete_if { |_| _.title == src.title }
 
           _transfer_file(src, dest_dir, file)
+
+          if @option.remove_source_files? && !@option.existing?
+            src.delete! unless @option.dry_run?
+            @option.log_deleted(src)
+          end
         end
       }
 
