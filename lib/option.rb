@@ -11,6 +11,7 @@ module GDSync
       @size_only = options[:size_only] || false
       @recursive = options[:recursive] || false
       @preserve_time = options[:preserve_time] || false
+      @ignore_times = options[:ignore_times] || false
 
       archive = options[:archive] || false
       if archive
@@ -44,6 +45,8 @@ module GDSync
         src_file.md5 != dest_file.md5
       elsif @size_only
         src_file.size != dest_file.size
+      elsif @ignore_times
+        true
       else
         src_file.size != dest_file.size or dest_file.mtime < src_file.mtime
       end
