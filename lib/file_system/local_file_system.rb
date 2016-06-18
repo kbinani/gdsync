@@ -91,17 +91,13 @@ module GDSync
       end
 
       def entries(&block)
-        entries = ::Dir.entries(@path)
+        entries = ::Dir.entries(@path, :encoding => ::Encoding::UTF_8)
         entries.select { |e|
           e != '.' and e != '..'
-        }.map { |e|
-          e.encode(::Encoding::UTF_8)
         }.each { |e|
           path = ::File.join(@path, e)
 
-          if ::Gem.win_platform? and ::File.hidden?(path)
-            next
-          end
+          next if ::Gem.win_platform? && ::File.hidden?(path)
 
           f = nil
           if ::File.directory?(path)

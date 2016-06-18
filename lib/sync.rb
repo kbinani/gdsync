@@ -18,8 +18,8 @@ module GDSync
       @googledrive_fs = nil
       @local_fs = nil
 
-      @src = src
-      @dest = dest_dir
+      @src = src.map { |_| _.encode(::Encoding::UTF_8) }
+      @dest = dest_dir.encode(::Encoding::UTF_8)
       @option = option
     end
 
