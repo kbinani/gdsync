@@ -12,6 +12,7 @@ module GDSync
       @recursive = options[:recursive] || false
       @preserve_time = options[:preserve_time] || false
       @ignore_times = options[:ignore_times] || false
+      @existing = options[:existing] || false
 
       archive = options[:archive] || false
       if archive
@@ -38,6 +39,10 @@ module GDSync
 
     def preserve_time?
       @preserve_time
+    end
+
+    def existing?
+      @existing
     end
 
     def should_update?(src_file, dest_file)

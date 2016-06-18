@@ -41,11 +41,11 @@ module GDSync
           if src.is_dir?
             if @option.recursive?
               dest = _lookup_dir(@dest)
-              if !dest.nil? && !src.path.end_with?('/')
+              if !dest.nil? && !src.path.end_with?('/') && !@option.existing?
                 dest = _create_new_dir(src.title, dest)
                 raise "cannot create directory '#{::File.join(@dest, src.title)}'" if dest.nil?
               end
-              if dest.nil?
+              if dest.nil? && !@option.existing?
                 raise "cannot find dest directory"
               else
                 _transfer_directory_contents_recursive(src, dest)
@@ -59,7 +59,7 @@ module GDSync
               raise "cannot find dest directory"
             else
               dest_existing_file = _lookup_file_or_dir(::File.join(dest.path, src.title))
-              _transfer_file(src, dest, dest_existing_file)
+              _transfer_file(src, dest, dest_existing_file) 
             end
           end
         end
@@ -152,13 +152,15 @@ module GDSync
       mtime = @option.preserve_time? ? src_file.mtime : DateTime.now
 
       if dest_existing_file.nil?
-        # file does not exist. so, create new file.
-        created = _create_new_file(src_file, dest_dir)
+        unless @option.existing?
+          # file does not exist. so, create new file.
+          created = _create_new_file(src_file, dest_dir)
 
-        if created.nil?
-          @option.error("cannot create file '#{::File.join(dest_dir.path, src_file.title)}'")
-        else
-          @option.log_created(created)
+          if created.nil?
+            @option.error("cannot create file '#{::File.join(dest_dir.path, src_file.title)}'")
+          else
+            @option.log_created(created)
+          end
         end
       else
         # file already exists.
@@ -212,7 +214,7 @@ module GDSync
             next
           end
 
-          if dir.nil?
+          if dir.nil? && !@option.existing?
             dir = _create_new_dir(src.title, dest_dir)
           end
 
