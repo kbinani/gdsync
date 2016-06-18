@@ -14,44 +14,72 @@ module GDSync
     # @param dest [String]
     # @param option [Option]
     def initialize(src, dest_dir, option)
-      if Gem.win_platform?
-        # "OpenSSL::X509::DEFAULT_CERT_FILE" may point to invalid location,
-        # typically depending on who build the RubyInstaller. (ex. "C:/Users/(someone)/Projects/knap-build/...")
-        # So we have to set correct *.pem file path. Fortunately, 'google-api-client' provides valid 'cacerts.pem' file.
-        cert_path = ::File.join(::Gem.loaded_specs['google-api-client'].full_gem_path, 'lib', 'cacerts.pem')
-        ENV['SSL_CERT_FILE'] = cert_path
-      end
-
-      @session = ::GoogleDrive.saved_session('config.json')
-      @googledrive_fs = GoogleDriveFileSystem.new(@session)
-      @local_fs = LocalFileSystem.new
-      @dryrun_fs = DryRunFileSystem.new
+      @googledrive_session = nil
+      @googledrive_fs = nil
+      @local_fs = nil
 
       @src = src
       @dest = dest_dir
       @option = option
     end
 
+    def local_fs
+      if @local_fs.nil?
+        @local_fs = LocalFileSystem.new
+      end
+      @local_fs
+    end
+
+    def dryrun_fs
+      if @dryrun_fs.nil?
+        @dryrun_fs = DryRunFileSystem.new
+      end
+      @dryrun_fs
+    end
+
+    def googledrive_fs
+      if @googledrive_fs.nil?
+        @googledrive_fs = GoogleDriveFileSystem.new(googledrive_session)
+      end
+      @googledrive_fs
+    end
+
+    def googledrive_session
+      if @googledrive_session.nil?
+        if Gem.win_platform?
+          # "OpenSSL::X509::DEFAULT_CERT_FILE" may point to invalid location,
+          # typically depending on who build the RubyInstaller. (ex. "C:/Users/(someone)/Projects/knap-build/...")
+          # So we have to set correct *.pem file path. Fortunately, 'google-api-client' provides valid 'cacerts.pem' file.
+          cert_path = ::File.join(::Gem.loaded_specs['google-api-client'].full_gem_path, 'lib', 'cacerts.pem')
+          ENV['SSL_CERT_FILE'] = cert_path
+        end
+        @googledrive_session = ::GoogleDrive.saved_session('config.json')
+      end
+      @googledrive_session
+    end
+
     def run
       @src.each { |_|
         src = _lookup_file_or_dir(_)
+
         if src.nil?
           raise "file or directory '#{_}' not found"
         else
           if src.is_dir?
             if @option.recursive?
               dest = _lookup_dir(@dest)
-
-              if @option.ignore_existing && !dest.nil?
-                next
+              
+              if !dest.nil? && !src.path.end_with?('/')
+                sub = _lookup_dir(::File.join(@dest, src.title))
+                if sub.nil? && !@option.existing?
+                  sub = _create_new_dir(src.title, dest)
+                  raise "cannot create directory '#{::File.join(@dest, src.title)}'" if sub.nil?
+                end
+                dest = sub
               end
 
-              if !dest.nil? && !src.path.end_with?('/') && !@option.existing?
-                dest = _create_new_dir(src.title, dest)
-                raise "cannot create directory '#{::File.join(@dest, src.title)}'" if dest.nil?
-              end
-              if dest.nil? && !@option.existing?
-                raise "cannot find dest directory"
+              if dest.nil?
+                raise "cannot find dest directory" unless @option.existing?
               else
                 _transfer_directory_contents_recursive(src, dest)
               end
@@ -63,7 +91,7 @@ module GDSync
             if dest.nil?
               raise "cannot find dest directory"
             else
-              dest_existing_file = _lookup_file_or_dir(::File.join(dest.path, src.title))
+              dest_existing_file = dest.fs.find(::File.join(dest.path, src.title))
               _transfer_file(src, dest, dest_existing_file) 
             end
           end
@@ -73,35 +101,20 @@ module GDSync
 
     private
 
-    # @param file [String]
-    # @return [AbstractFile or AbstractDir]
-    def _lookup_file_or_dir(file)
-      if file.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
-        @googledrive_fs.find(file)
+    def _lookup_file_or_dir(path)
+      if path.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
+        googledrive_fs.find(path)
       else
-        @local_fs.find(file)
+        local_fs.find(path)
       end
     end
 
     # @param dir [String]
     def _lookup_dir(dir)
-      d = nil
-      
-      if dir.start_with?(GoogleDriveFileSystem::URL_SCHEMA)
-        d = @googledrive_fs.find(dir)
-      else
-        d = @local_fs.find(dir)
-      end
-      
-      if d.nil?
-        nil
-      else
-        if d.is_dir?
-          d
-        else
-          nil
-        end
-      end
+      d = _lookup_file_or_dir(dir)
+      return nil if d.nil?
+      return nil unless d.is_dir?
+      d
     end
 
     # @param src [AbstractFile]
@@ -114,7 +127,7 @@ module GDSync
       birthtime = @option.preserve_time? ? src.birthtime : now
 
       if @option.dry_run?
-        created = DryRunFileSystem::File.new(@dryrun_fs, ::File.join(dest_dir.path, src.title))
+        created = DryRunFileSystem::File.new(dryrun_fs, ::File.join(dest_dir.path, src.title))
       elsif dest_dir.fs.instance_of?(src.fs.class)
         # copy file between same filesystem.
         created = src.copy_to(dest_dir, birthtime, mtime)
@@ -139,7 +152,7 @@ module GDSync
       dir = nil
 
       if @option.dry_run?
-        dir = DryRunFileSystem::Dir.new(@dryrun_fs, ::File.join(dest_dir.path, title))
+        dir = DryRunFileSystem::Dir.new(dryrun_fs, ::File.join(dest_dir.path, title))
       else
         dir = dest_dir.create_dir!(title)
       end
@@ -178,7 +191,7 @@ module GDSync
           end
 
           if @option.dry_run?
-            updated = DryRunFileSystem::File.new(@dryrun_fs, dest_existing_file.path)
+            updated = DryRunFileSystem::File.new(dryrun_fs, dest_existing_file.path)
           elsif src_file.fs.can_create_io_stream?
             updated = dest_existing_file.update!(src_file.create_read_io, mtime)
           else

@@ -4,22 +4,24 @@
 module GDSync
   class Option
     def initialize(options)
-      @verbose = options[:verbose] || true
-      @delete = options[:delete] || false
-      @checksum = options[:checksum] || false
-      @dry_run = options[:dry_run] || false
-      @size_only = options[:size_only] || false
-      @recursive = options[:recursive] || false
-      @preserve_time = options[:preserve_time] || false
-      @ignore_times = options[:ignore_times] || false
-      @existing = options[:existing] || false
-      @ignore_existing = options[:ignore_existing]
+      @verbose = options.include?('--verbose')
+      @delete = options.include?('--delete')
+      @checksum = options.include?('--checksum')
+      @dry_run = options.include?('--dry-run')
+      @size_only = options.include?('--size-only')
+      @recursive = options.include?('--recursive')
+      @preserve_time = options.include?('--times')
+      @ignore_times = options.include?('--ignore-times')
+      @existing = options.include?('--existing')
+      @ignore_existing = options.include?('--ignore-existing')
 
-      archive = options[:archive] || false
+      archive = options.include?('--archive')
       if archive
         @recursive = true
         @preserve_time = true
       end
+
+      _validate
     end
 
     def delete?
@@ -84,6 +86,13 @@ module GDSync
 
     def log_skip(file)
       puts "#{file.path}#{file.is_dir? ? '/' : ''} (skip)" if @verbose
+    end
+
+    private
+
+    def _validate
+      # --delete does not work without -r or -d.
+      raise '--delete does not work without -r.' if @delete && !@recursive
     end
   end
 end
