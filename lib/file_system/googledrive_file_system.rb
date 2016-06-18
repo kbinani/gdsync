@@ -85,7 +85,7 @@ module GDSync
       def entries(&block)
         @collection.files { |file|
           unless file.explicitly_trashed
-            if file.is_a?(GoogleDrive::Collection)
+            if file.is_a?(::GoogleDrive::Collection)
               d = Dir.new(@fs, file, ::File.join(@path, file.title))
               block.call(d)
             else

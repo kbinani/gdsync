@@ -30,7 +30,7 @@ module GDSync
 
       def md5
         if @md5.nil?
-          @md5 = Digest::MD5.file(@path).to_s
+          @md5 = ::Digest::MD5.file(@path).to_s
         end
 
         @md5
@@ -87,7 +87,7 @@ module GDSync
         entries.select { |e|
           e != '.' and e != '..'
         }.map { |e|
-          e.encode(Encoding::UTF_8)
+          e.encode(::Encoding::UTF_8)
         }.each { |e|
           path = ::File.join(@path, e)
 
@@ -132,7 +132,7 @@ module GDSync
       end
 
       def delete!
-        FileUtils.rm_r(@path)
+        ::FileUtils.rm_r(@path)
       end
 
       def path
