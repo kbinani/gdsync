@@ -3,7 +3,7 @@
 
 require 'google_drive'
 require_relative 'file_system'
-require_relative 'file_system/googledrive_file_system'
+require_relative 'file_system/google_drive_file_system'
 require_relative 'file_system/local_file_system'
 require_relative 'option'
 
