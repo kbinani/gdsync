@@ -194,8 +194,8 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   def _rsync(src, dest, options)
-    cmd = "rsync #{options.join(' ')} #{src} #{dest}"
-    raise "#{cmd} failed" unless `#{cmd}`
+    cmd = "rsync #{options.join(' ')} #{src} #{dest} > /dev/null"
+    raise "#{cmd} failed" unless system(cmd)
   end
 
   def _tree(dir)

@@ -7,7 +7,7 @@ require 'tmpdir'
 require_relative '../lib/option.rb'
 
 class TestOption < ::Test::Unit::TestCase
-  def test_initialize
+  def test_validate
     options = GDSync::Option::SUPPORTED_OPTIONS
 
     for num_options in (0..options.size) do
@@ -23,5 +23,16 @@ class TestOption < ::Test::Unit::TestCase
         end
       }
     end
+  end
+
+  def test_recursive_overrides_dirs
+    o = GDSync::Option.new(['--dirs'])
+    assert_true(o.dirs?)
+
+    o = GDSync::Option.new(['--dirs', '--recursive'])
+    assert_false(o.dirs?)
+
+    o = GDSync::Option.new(['--recursive'])
+    assert_false(o.dirs?)
   end
 end

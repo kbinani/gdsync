@@ -14,6 +14,7 @@ module GDSync
       '--ignore-times',
       '--size-only',
       '--update',
+      '--dirs',
     ].freeze
 
     def initialize(options)
@@ -28,6 +29,7 @@ module GDSync
       @existing = options.include?('--existing')
       @ignore_existing = options.include?('--ignore-existing')
       @update = options.include?('--update')
+      @dirs = options.include?('--dirs')
 
       archive = options.include?('--archive')
       if archive
@@ -64,6 +66,14 @@ module GDSync
 
     def ignore_existing?
       @ignore_existing
+    end
+
+    def dirs?
+      if @recursive
+        false
+      else
+        @dirs
+      end
     end
 
     def should_update?(src_file, dest_file)

@@ -66,7 +66,7 @@ module GDSync
           raise "file or directory '#{_}' not found"
         else
           if src.is_dir?
-            if @option.recursive?
+            if @option.recursive? || @option.dirs?
               dest = _lookup_dir(@dest)
               
               if !dest.nil? && !src.path.end_with?('/')
@@ -81,7 +81,7 @@ module GDSync
               if dest.nil?
                 raise "cannot find dest directory" unless @option.existing?
               else
-                _transfer_directory_contents_recursive(src, dest)
+                _transfer_directory_contents_recursive(src, dest) unless @option.dirs? && !src.path.end_with?('/')
               end
             else
               @option.log_skip(src)
@@ -229,7 +229,7 @@ module GDSync
 
           existing_dirs.delete_if { |_| _.title == src.title }
 
-          unless @option.recursive?
+          if !@option.recursive? && !@option.dirs?
             @option.log_skip(src)
             next
           end
@@ -238,7 +238,7 @@ module GDSync
             dir = _create_new_dir(src.title, dest_dir)
           end
 
-          unless dir.nil?
+          if !dir.nil? && !@option.dirs?
             _transfer_directory_contents_recursive(src, dir)
           end
         else
