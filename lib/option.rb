@@ -11,6 +11,12 @@ module GDSync
       @size_only = options[:size_only] || false
       @recursive = options[:recursive] || false
       @preserve_time = options[:preserve_time] || false
+
+      archive = options[:archive] || false
+      if archive
+        @recursive = true
+        @preserve_time = true
+      end
     end
 
     def delete?
