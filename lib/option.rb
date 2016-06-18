@@ -8,6 +8,7 @@ module GDSync
       @delete = options[:delete] || false
       @checksum = options[:checksum] || false
       @dry_run = options[:dry_run] || false
+      @size_only = options[:size_only] || false
     end
 
     def delete?
@@ -25,6 +26,8 @@ module GDSync
     def should_update?(src_file, dest_file)
       if @checksum
         src_file.md5 != dest_file.md5
+      elsif @size_only
+        src_file.size != dest_file.size
       else
         src_file.size != dest_file.size or dest_file.mtime < src_file.mtime
       end
