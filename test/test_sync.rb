@@ -207,7 +207,12 @@ class TestSync < ::Test::Unit::TestCase
       else
         assert_false(File.directory?(apath))
         assert_true((File.mtime(epath).to_i - File.mtime(apath).to_i).abs <= 1) if assert_mtime
-        assert_equal(::Digest::MD5.file(epath).to_s, ::Digest::MD5.file(apath).to_s) if assert_checksum
+
+        if assert_checksum
+          expected_checksum = ::Digest::MD5.file(epath).to_s
+          actual_checksum = ::Digest::MD5.file(apath).to_s
+          assert_equal(expected_checksum, actual_checksum, "expected #{expected_checksum} (#{epath}) for #{actual_checksum} (#{apath})")
+        end
       end
     end
   end
