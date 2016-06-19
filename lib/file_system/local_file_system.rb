@@ -76,7 +76,11 @@ module GDSync
 
       def birthtime
         f = ::File.new(@path)
-        f.birthtime.to_datetime
+        begin
+          f.birthtime.to_datetime
+        rescue NotImplementedError => e
+          f.mtime.to_datetime
+        end
       end
     end
 
