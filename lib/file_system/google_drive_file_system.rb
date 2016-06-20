@@ -119,12 +119,13 @@ module GDSync
       end
 
       def create_dir!(title)
-        created = @collection.create_subcollection(title)
-        if created.nil?
-          nil
-        else
-          Dir.new(@fs, created, ::File.join(@path, title))
+        begin
+          created = @collection.create_subcollection(title)
+          return Dir.new(@fs, created, ::File.join(@path, title)) unless created.nil?
+        rescue
         end
+
+        nil
       end
 
       def create_file_with_read_io!(io, title, mtime, birthtime)
