@@ -64,6 +64,7 @@ module GDSync
       end
 
       def entries(&block)
+        true
       end
 
       def create_dir!(_title)

@@ -101,17 +101,23 @@ module GDSync
       end
 
       def entries(&block)
-        @collection.files { |file|
-          unless file.explicitly_trashed
-            if file.is_a?(::GoogleDrive::Collection)
-              d = Dir.new(@fs, file, ::File.join(@path, file.title))
-              block.call(d)
-            else
-              f = File.new(@fs, file, ::File.join(@path, file.title))
-              block.call(f)
+        begin
+          @collection.files { |file|
+            unless file.explicitly_trashed
+              if file.is_a?(::GoogleDrive::Collection)
+                d = Dir.new(@fs, file, ::File.join(@path, file.title))
+                block.call(d)
+              else
+                f = File.new(@fs, file, ::File.join(@path, file.title))
+                block.call(f)
+              end
             end
-          end
-        }
+          }
+          return true
+        rescue
+        end
+
+        false
       end
 
       def fs

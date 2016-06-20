@@ -103,6 +103,7 @@ module GDSync
       end
 
       # Enumerate contents of directory.
+      # @return [Boolean] true if successfully enumerated.
       def entries(&block)
         raise 'abstract method "entries" called'
       end

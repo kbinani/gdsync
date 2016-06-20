@@ -236,15 +236,16 @@ module GDSync
       # list existing dirs/files in the 'dest_dir'.
       existing_dirs = []
       existing_files = []
-      dest_dir.entries { |entry|
+      ok = dest_dir.entries { |entry|
         if entry.is_dir?
           existing_dirs << entry
         else
           existing_files << entry
         end
       }
+      @option.error("cannot enumerate directory contents: #{dest_dir.path}") unless ok
 
-      src_dir.entries { |src|
+      ok = src_dir.entries { |src|
         if src.is_dir?
           # search dir in 'dest_dir' with same title.
           dir = existing_dirs.select { |_|
@@ -281,6 +282,7 @@ module GDSync
           end
         end
       }
+      @option.error("cannot enumerate directory contents: #{src_dir.path}") unless ok
 
       if @option.delete?
         existing_dirs.each { |dir|

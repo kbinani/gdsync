@@ -111,6 +111,8 @@ module GDSync
           end
           block.call(f)
         }
+
+        true
       end
 
       def fs
