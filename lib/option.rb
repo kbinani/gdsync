@@ -136,8 +136,7 @@ module GDSync
     private
 
     def _validate
-      # --delete does not work without -r or -d.
-      raise '--delete does not work without -r.' if @delete && !@recursive
+      raise '--delete does not work without --recursive (-r) or --dirs (-d).' if @delete && !(@recursive or @dirs)
     end
 
     def _parse_size(options, option_name, default_value)

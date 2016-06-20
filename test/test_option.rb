@@ -12,7 +12,7 @@ class TestOption < ::Test::Unit::TestCase
 
     for num_options in (0..options.size) do
       options.combination(num_options).each { |opts|
-        if opts.include?('--delete') && !opts.include?('--recursive')
+        if opts.include?('--delete') && !(opts.include?('--recursive') or opts.include?('--dirs'))
           assert_raise_kind_of(RuntimeError) do
             GDSync::Option.new(opts)
           end
