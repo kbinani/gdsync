@@ -2,4 +2,4 @@ language: ruby
 script:
   - which rsync
   - rsync --version
-  - rake
+  - travis_wait rake
