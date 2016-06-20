@@ -94,7 +94,9 @@ module GDSync
     end
 
     def should_update?(src_file, dest_file)
-      return false if @update && dest_file.mtime > src_file.mtime
+      # Ignore sub-second part of mtime.
+      # This is same behavior when rsync(1) had been compiled without 'HAVE_UTIMENSAT' macro.
+      return false if @update && dest_file.mtime.to_time.to_i > src_file.mtime.to_time.to_i
 
       if @checksum
         src_file.md5 != dest_file.md5
@@ -103,7 +105,7 @@ module GDSync
       elsif @ignore_times
         true
       else
-        src_file.size != dest_file.size or dest_file.mtime < src_file.mtime
+        src_file.size != dest_file.size or dest_file.mtime.to_time.to_i < src_file.mtime.to_time.to_i
       end
     end
 
