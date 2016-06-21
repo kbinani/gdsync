@@ -1,5 +1,10 @@
 language: ruby
+os:
+  - linux
+  - osx
+env:
+  global:
+    secure: KpI5vrSXpNYpumsYWzuSv4Ei7yLzM6zuw2/bA6AvRCfiZA4MCgidHZA4vTTMszzcZ74IdHlxrWCfFF6sRUphWmTPb8sBddx6GTXipFASDXrMqiPzqGTdHh8g3fodrJfgcRTwlCxgNfbWnIC2XpHmc0QcisUqkBhBI6SBBjZ1IrjbtQd+t40gLpHbFSHMfhZPekStMWtpkTlAcSizq5YNCoRkpnmQ9BPA9Xf7AOCc1fd+JxWVqbHpyvvL4bnSYUDZXlBSf8zZasjnWwOGSDM9/hc8/5dxt8FxqbSaEXEKkemdvgY0to6HJ3TZTOTpoI/K4Fw19ATvnWirb3s/D5BTypmehkDpvuCdqh6rMi4Wv/jOrfSTPDdt4jlbTvV5OdgeLHLIFTLyIVNYc5SP2bLdcNF/nCP1Mz01O/7lXxNgupkPIt5nKDUET3CAcESStGgoKxW3tg7ydj5JQX2sRXruM7UJTSa7JQCtUxhJH1E9qQwOTFylGWt34/jdDOc4ACffDC8XyPfa4AnhiE9lrMC7ZUrv/05AzSgzkVLHmkTy//eqXb0xiXAhzPySuEyM/fFKQxFPTCeFCtFtufvOO1E+8munFsZJ5MOircmDPfRcs859Gaete0ukMQLVH6GMXPsrw6e2PmeJAjfk8AZXt0+hrY8Y8fGGbM+b6+HnLsfMd/w=
 script:
-  - which rsync
-  - rsync --version
+  - printenv CONFIG_BLOB > config.json
   - travis_wait 30 rake

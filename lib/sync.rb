@@ -1,7 +1,6 @@
 # coding: utf-8
 # frozen_string_literal: true
 
-require 'google_drive'
 require_relative 'file_system'
 require_relative 'file_system/google_drive_file_system'
 require_relative 'file_system/local_file_system'
@@ -14,7 +13,6 @@ module GDSync
     # @param dest [String]
     # @param option [Option]
     def initialize(src, dest_dir, option)
-      @googledrive_session = nil
       @googledrive_fs = nil
       @local_fs = nil
 
@@ -41,23 +39,9 @@ module GDSync
 
     def googledrive_fs
       if @googledrive_fs.nil?
-        @googledrive_fs = GoogleDriveFileSystem.new(googledrive_session)
+        @googledrive_fs = GoogleDriveFileSystem.new(@googledrive_config_path)
       end
       @googledrive_fs
-    end
-
-    def googledrive_session
-      if @googledrive_session.nil?
-        if Gem.win_platform?
-          # "OpenSSL::X509::DEFAULT_CERT_FILE" may point to invalid location,
-          # typically depending on who build the RubyInstaller. (ex. "C:/Users/(someone)/Projects/knap-build/...")
-          # So we have to set correct *.pem file path. Fortunately, 'google-api-client' provides valid 'cacerts.pem' file.
-          cert_path = ::File.join(::Gem.loaded_specs['google-api-client'].full_gem_path, 'lib', 'cacerts.pem')
-          ENV['SSL_CERT_FILE'] = cert_path
-        end
-        @googledrive_session = ::GoogleDrive.saved_session(@googledrive_config_path)
-      end
-      @googledrive_session
     end
 
     def run
