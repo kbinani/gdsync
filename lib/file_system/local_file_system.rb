@@ -95,20 +95,22 @@ module GDSync
       end
 
       def entries(&block)
-        entries = ::Dir.entries(@path, :encoding => ::Encoding::UTF_8)
-        entries.select { |e|
+        dirs = []
+        files = []
+
+        ::Dir.entries(@path, :encoding => ::Encoding::UTF_8).select { |e|
           e != '.' and e != '..'
-        }.each { |e|
+        }.sort.each { |e|
           path = ::File.join(@path, e)
-
           next if ::Gem.win_platform? && ::File.hidden?(path)
-
-          f = nil
           if ::File.directory?(path)
-            f = Dir.new(@fs, path)
+            dirs << Dir.new(@fs, path)
           else
-            f = File.new(@fs, path)
+            files << File.new(@fs, path)
           end
+        }
+
+        (dirs + files).each { |f|
           block.call(f)
         }
 

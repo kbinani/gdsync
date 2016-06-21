@@ -103,6 +103,7 @@ module GDSync
       end
 
       # Enumerate contents of directory.
+      # Should be enumerated directories with lexical order at first, then files with lexical order.
       # @return [Boolean] true if successfully enumerated.
       def entries(&block)
         raise 'abstract method "entries" called'
