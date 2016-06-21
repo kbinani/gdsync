@@ -4,11 +4,35 @@
 require_relative 'test_helper.rb'
 require 'test/unit'
 require 'tmpdir'
+require 'pathname'
 require_relative '../lib/sync.rb'
 require_relative '../lib/option.rb'
 
 class TestSync < ::Test::Unit::TestCase
   OPTIONS = GDSync::Option::SUPPORTED_OPTIONS
+
+  def setup
+    temp_dir_root = Dir.tmpdir
+    if Gem.win_platform?
+      cwd = Dir.pwd
+      unless cwd[0] == temp_dir_root[0] # cwd and tmpdir are located on different drives.
+        # Use custom temporary directory.
+        # Reasons:
+        # 1. MSYS's rsync does not support directory with drive letter (ex. C:\Path\To\Somewhere).
+        # 2. If Dir.pwd and Dir.tmpdir are in same drive, drive letter issue can be prevented by using relative paths.
+        # 3. If Dir.pwd and Dir.tmpdir are NOT in same drive, we can apply 'relative path' workaround
+        #    by using custom tmpdir on the same drive to Dir.pwd,
+        temp_dir_root = File.join(cwd, 'tmp')
+        Dir.mkdir(temp_dir_root) unless File.directory?(temp_dir_root)
+      end
+    end
+    @temp_dir = File.join(temp_dir_root, 'gdsync_sync_test')
+    Dir.mkdir(@temp_dir) unless File.directory?(@temp_dir)
+  end
+
+  def teardown
+    _rm_rf(@temp_dir)
+  end
 
   data do
     options = {}
@@ -30,12 +54,13 @@ class TestSync < ::Test::Unit::TestCase
   VERBOSE = false
 
   def _run(rsync_options)
-    Dir.mktmpdir { |workdir|
-      _case(rsync_options, workdir, false)
-    }
-    Dir.mktmpdir { |workdir|
-      _case(rsync_options, workdir, true)
-    }
+    workdir = Dir.mktmpdir('d', @temp_dir)
+    _case(rsync_options, workdir, false)
+    _rm_rf(workdir)
+
+    workdir = Dir.mktmpdir('d', @temp_dir)
+    _case(rsync_options, workdir, true)
+    _rm_rf(workdir)
   end
 
   def _case(rsync_options, workdir, with_trailing_slash)
@@ -84,18 +109,18 @@ class TestSync < ::Test::Unit::TestCase
     assert_nothing_raised do
       sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
       sync.run
+    end
 
-      if VERBOSE
-        _separator
-        puts "RSYNC_SRC(after#1):"
-        _tree(rsync_fixtures)
-        puts "RSYNC_DEST(after#1):"
-        _tree(rsync_dest)
-        puts "GDSYNC_SRC(after#1):"
-        _tree(gdsync_fixtures)
-        puts "GDSYNC_DEST(after#1):"
-        _tree(gdsync_dest)
-      end
+    if VERBOSE
+      _separator
+      puts "RSYNC_SRC(after#1):"
+      _tree(rsync_fixtures)
+      puts "GDSYNC_SRC(after#1):"
+      _tree(gdsync_fixtures)
+      puts "RSYNC_DEST(after#1):"
+      _tree(rsync_dest)
+      puts "GDSYNC_DEST(after#1):"
+      _tree(gdsync_dest)
     end
 
     # Compare directory structure between 'sync.run'ed dir and 'rsync'ed dir.
@@ -104,8 +129,8 @@ class TestSync < ::Test::Unit::TestCase
 
     # Modify 'fixtures'.
     [rsync_fixtures, gdsync_fixtures].each { |d|
-      FileUtils.rm_rf(File.join(d, 'delete_local'))
-      FileUtils.rm_rf(File.join(d, 'delete_local_file.txt'))
+      _rm_rf(File.join(d, 'delete_local'))
+      _rm_rf(File.join(d, 'delete_local_file.txt'))
 
       edited_local_file = File.join(d, 'sub', 'edited_local_file.txt')
       if File.exist?(edited_local_file)
@@ -136,8 +161,8 @@ class TestSync < ::Test::Unit::TestCase
     # Modify 'dest' and 'expected'
     mid = with_trailing_slash ? '' : '/fixtures'
     [rsync_dest, gdsync_dest].each { |d|
-      FileUtils.rm_rf(File.join("#{d}#{mid}", 'delete_remote'))
-      FileUtils.rm_rf(File.join("#{d}#{mid}", 'delete_remote_file.txt'))
+      _rm_rf(File.join("#{d}#{mid}", 'delete_remote'))
+      _rm_rf(File.join("#{d}#{mid}", 'delete_remote_file.txt'))
 
       edited_remote_file = File.join("#{d}#{mid}", 'sub', 'edited_remote_file.txt')
       if File.exist?(edited_remote_file)
@@ -172,18 +197,18 @@ class TestSync < ::Test::Unit::TestCase
     assert_nothing_raised do
       sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
       sync.run
+    end
 
-      if VERBOSE
-        _separator
-        puts "RSYNC_SRC(after#2):"
-        _tree(rsync_fixtures)
-        puts "RSYNC_DEST(after#2):"
-        _tree(rsync_dest)
-        puts "GDSYNC_SRC(after#2):"
-        _tree(gdsync_fixtures)
-        puts "GDSYNC_DEST(after#2):"
-        _tree(gdsync_dest)
-      end
+    if VERBOSE
+      _separator
+      puts "RSYNC_SRC(after#2):"
+      _tree(rsync_fixtures)
+      puts "GDSYNC_SRC(after#2):"
+      _tree(gdsync_fixtures)
+      puts "RSYNC_DEST(after#2):"
+      _tree(rsync_dest)
+      puts "GDSYNC_DEST(after#2):"
+      _tree(gdsync_dest)
     end
 
     # Second compare
@@ -192,8 +217,8 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum)
-    e = Dir.entries(expected).select { |_| _ != '.' && _ != '..' }.sort
-    a = Dir.entries(actual).select { |_| _ != '.' && _ != '..' }.sort
+    e = Dir.entries(expected, :encoding => Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
+    a = Dir.entries(actual, :encoding => Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
     assert_equal(e, a)
 
     for i in (0...e.size) do
@@ -218,13 +243,27 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   def _rsync(src, dest, options)
-    cmd = "rsync #{options.join(' ')} #{src} #{dest} >/dev/null"
+    cwd = Dir.pwd
+
+    relative_dest_path = Pathname.new(File.absolute_path(dest)).relative_path_from(Pathname.new(cwd))
+    relative_src_path = Pathname.new(File.absolute_path(src)).relative_path_from(Pathname.new(cwd))
+
+    relative_src_path = "#{relative_src_path}/" if src.end_with?('/')
+
+    nul_device = Gem.win_platform? ? 'nul' : '/dev/null'
+
+    cmd = "rsync #{options.join(' ')} \"#{relative_src_path}\" \"#{relative_dest_path}\" > #{nul_device}"
     raise "#{cmd} failed" unless system(cmd)
   end
 
   def _tree(dir)
-    lines = `tree #{dir}`.lines
-    lines = lines.slice(1, lines.size - 3)
+    opt = Gem.win_platform? ? '/F' : ''
+    lines = `tree #{opt} #{dir}`.lines
+    if Gem.win_platform?
+      lines = lines.slice(3, lines.size)
+    else
+      lines = lines.slice(1, lines.size - 3)
+    end
     lines.each { |line|
       puts line
     }
@@ -232,5 +271,13 @@ class TestSync < ::Test::Unit::TestCase
 
   def _separator(char = "-")
     puts char * 83
+  end
+
+  def _rm_rf(path)
+    # Retry till the path did actually disappear:
+    # this is a workaround on windows environment.
+    while File.exist?(path) do
+      FileUtils.rm_rf(path)
+    end
   end
 end
