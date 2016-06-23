@@ -4,12 +4,19 @@ environment:
 install:
 - cmd: >-
     set PATH=C:\Ruby23-x64\bin;C:\MinGW\bin;C:\MinGW\msys\1.0\bin;%PATH%
+
     mingw-get install msys-rsync
+
     rsync --version
+
     ruby --version
+
     bundle --version
+
     rake --version
+
     bundle install
+
     ruby -e 'print ENV["CONFIG_BLOB"]' > config.json
 test_script:
 - cmd: >-
