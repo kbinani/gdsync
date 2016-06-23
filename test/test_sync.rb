@@ -35,14 +35,24 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   data do
-    options = {}
-    for num_options in (0..OPTIONS.size) do
-      OPTIONS.combination(num_options).each { |rsync_options|
+    options = []
+    if Gem.win_platform?
+      options = GDSync::Option::SUPPORTED_OPTIONS.select { |option|
+        # MSYS's rsync frequently reports 'Permission Denied(13)' errors when '--remove-source-files' option is set.
+        option != '--remove-source-files'
+      }
+    else
+      options = GDSync::Option::SUPPORTED_OPTIONS
+    end
+
+    data_list = {}
+    for num_options in (0..options.size) do
+      options.combination(num_options).each { |rsync_options|
         key = rsync_options.join(' ')
-        options[key] = rsync_options
+        data_list[key] = rsync_options
       }
     end
-    options
+    data_list
   end
   def test_run(data)
     rsync_options = data
@@ -86,15 +96,19 @@ class TestSync < ::Test::Unit::TestCase
     rsync_fixtures = File.join(workdir, 'rsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
     FileUtils.mkdir_p(rsync_fixtures)
     _rsync('test/fixtures/', rsync_fixtures, ['-a'])
+    _remove_readonly_attribute(rsync_fixtures)
 
     gdsync_fixtures = File.join(workdir, 'gdsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
     FileUtils.mkdir_p(gdsync_fixtures)
     _rsync('test/fixtures/', gdsync_fixtures, ['-a'])
+    _remove_readonly_attribute(gdsync_fixtures)
 
     # Run rsync(1) to create *expected* directory structure.
     rsync_dest = File.join(workdir, 'rsync_dest')
     Dir.mkdir(rsync_dest)
     _rsync(rsync_fixtures, rsync_dest, rsync_options)
+    _remove_readonly_attribute(rsync_fixtures)
+    _remove_readonly_attribute(rsync_dest)
 
     # Create target directory.
     gdsync_dest = File.join(workdir, 'gdsync_dest')
@@ -124,10 +138,11 @@ class TestSync < ::Test::Unit::TestCase
     end
 
     # Compare directory structure between 'sync.run'ed dir and 'rsync'ed dir.
-    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum)
-    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum, 1.0)
+    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum, 1.0)
 
     # Modify 'fixtures'.
+    updating_src_start_datetime = DateTime.now
     [rsync_fixtures, gdsync_fixtures].each { |d|
       _rm_rf(File.join(d, 'delete_local'))
       _rm_rf(File.join(d, 'delete_local_file.txt'))
@@ -145,7 +160,7 @@ class TestSync < ::Test::Unit::TestCase
         open(edited_but_same_mtime_local_file, 'wb') { |f|
           f << 'c'
         }
-        File.utime(mtime, mtime, edited_but_same_mtime_local_file)
+        _utime(mtime, edited_but_same_mtime_local_file)
       end
 
       edited_but_same_mtime_and_same_size_local_file = File.join(d, 'sub', 'edited_but_same_mtime_and_same_size_local_file.txt')
@@ -154,12 +169,14 @@ class TestSync < ::Test::Unit::TestCase
         open(edited_but_same_mtime_local_file, 'wb') { |f|
           f.write('A')
         }
-        File.utime(mtime, mtime, edited_but_same_mtime_and_same_size_local_file)
+        _utime(mtime, edited_but_same_mtime_and_same_size_local_file)
       end
     }
+    elapsed_seconds_updating_src = (DateTime.now - updating_src_start_datetime).to_f * 24 * 60 * 60
 
     # Modify 'dest' and 'expected'
     mid = with_trailing_slash ? '' : '/fixtures'
+    updating_dest_start_datetime = DateTime.now
     [rsync_dest, gdsync_dest].each { |d|
       _rm_rf(File.join("#{d}#{mid}", 'delete_remote'))
       _rm_rf(File.join("#{d}#{mid}", 'delete_remote_file.txt'))
@@ -177,7 +194,7 @@ class TestSync < ::Test::Unit::TestCase
         open(edited_but_same_mtime_remote_file, 'wb') { |f|
           f << 'd'
         }
-        File.utime(mtime, mtime, edited_but_same_mtime_remote_file)
+        _utime(mtime, edited_but_same_mtime_remote_file)
       end
 
       edited_but_same_mtime_and_same_size_remote_file = File.join("#{d}#{mid}", 'sub', 'edited_but_same_mtime_and_same_size_remote_file.txt')
@@ -186,12 +203,15 @@ class TestSync < ::Test::Unit::TestCase
         open(edited_but_same_mtime_and_same_size_remote_file, 'wb') { |f|
           f.write('A')
         }
-        File.utime(mtime, mtime, edited_but_same_mtime_and_same_size_remote_file)
+        _utime(mtime, edited_but_same_mtime_and_same_size_remote_file)
       end
     }
+    elapsed_seconds_updating_dest = (DateTime.now - updating_dest_start_datetime).to_f * 24 * 60 * 60
 
     # Second run rsync
     _rsync(rsync_fixtures, rsync_dest, rsync_options)
+    _remove_readonly_attribute(rsync_fixtures)
+    _remove_readonly_attribute(rsync_dest)
 
     # Second run GDSync::Sync#run
     assert_nothing_raised do
@@ -212,13 +232,13 @@ class TestSync < ::Test::Unit::TestCase
     end
 
     # Second compare
-    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum)
-    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum)
+    _assert_dir_tree_equals(rsync_dest, gdsync_dest, assert_mtime, assert_checksum, (elapsed_seconds_updating_dest + 1).ceil)
+    _assert_dir_tree_equals(rsync_fixtures, gdsync_fixtures, assert_mtime, assert_checksum, (elapsed_seconds_updating_src + 1).ceil)
   end
 
-  def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum)
-    e = Dir.entries(expected, :encoding => Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
-    a = Dir.entries(actual, :encoding => Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
+  def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum, mtime_tolerance_second)
+    e = Dir.entries(expected, encoding: Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
+    a = Dir.entries(actual, encoding: Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
     assert_equal(e, a)
 
     for i in (0...e.size) do
@@ -228,10 +248,10 @@ class TestSync < ::Test::Unit::TestCase
       assert_equal(e[i], a[i])
       if File.directory?(epath)
         assert_true(File.directory?(apath))
-        _assert_dir_tree_equals(epath, apath, assert_mtime, assert_checksum)
+        _assert_dir_tree_equals(epath, apath, assert_mtime, assert_checksum, mtime_tolerance_second)
       else
         assert_false(File.directory?(apath))
-        assert_true((File.mtime(epath).to_i - File.mtime(apath).to_i).abs <= 1) if assert_mtime
+        assert_true((File.mtime(epath).to_i - File.mtime(apath).to_i).abs <= mtime_tolerance_second, "expected #{File.mtime(epath)} (#{epath}) for #{File.mtime(apath)} (#{apath})") if assert_mtime
 
         if assert_checksum
           expected_checksum = ::Digest::MD5.file(epath).to_s
@@ -244,6 +264,11 @@ class TestSync < ::Test::Unit::TestCase
 
   def _rsync(src, dest, options)
     cwd = Dir.pwd
+
+    # GDSync::Sync.#run behaves as if '--inplace' option is set.
+    # And, if --inplace is not set, MSYS's rsync sometimes report permission errors like:
+    #   sync: rename "/c/Users/name/AppData/Local/Temp/gdsync_sync_test/d20160623-1104-vut8fo/rsync_dest/fixtures/sub/.edited_remote_file.txt.014356" -> "fixtures/sub/edited_remote_file.txt": Permission denied (13)
+    options << '--inplace'
 
     relative_dest_path = Pathname.new(File.absolute_path(dest)).relative_path_from(Pathname.new(cwd))
     relative_src_path = Pathname.new(File.absolute_path(src)).relative_path_from(Pathname.new(cwd))
@@ -275,9 +300,52 @@ class TestSync < ::Test::Unit::TestCase
 
   def _rm_rf(path)
     # Retry till the path did actually disappear:
-    # this is a workaround on windows environment.
+    # this is a workaround on Windows environment.
     while File.exist?(path) do
-      FileUtils.rm_rf(path)
+      begin
+        FileUtils.remove_entry_secure(path)
+      rescue
+      end
+    end
+  end
+
+  # Recursively remove 'readonly' attribute.
+  def _remove_readonly_attribute(path)
+    return unless Gem.win_platform?
+
+    # Readonly attributes will be set by rsync.
+    # This will cause permission errors when editing fixture files.
+    # So we have to remove them after running rsync.
+
+    if File.directory?(path)
+      File.chmod(0755, path)
+
+      wide_path = path.wincode
+      attributes = ::Windows::File::Functions::GetFileAttributesW(wide_path)
+      attributes &= ~::Windows::File::Constants::FILE_ATTRIBUTE_READONLY
+      raise "Error" unless ::Windows::File::Functions::SetFileAttributesW(wide_path, attributes)
+
+      Dir.entries(path, encoding: Encoding::UTF_8).select { |e|
+        e != '.' && e != '..'
+      }.each { |e|
+        p = File.join(path, e)
+        _remove_readonly_attribute(p)
+      }
+    else
+      f = File.new(path)
+      mtime = f.mtime
+      f.readonly = false
+      File.chmod(0644, path)
+    end
+  end
+
+  def _utime(mtime, path)
+    while true do
+      begin
+        File.utime(mtime, mtime, path)
+        break
+      rescue
+      end
     end
   end
 end

@@ -11,7 +11,7 @@ module GDSync
       # Returns file name.
       # @return [String]
       def title
-        raise 'abstract method "title" called'
+        raise "abstract method '#{__callee__}' called"
       end
 
       # Path string (ex. "googledrive://Some/Directory/sample.txt")

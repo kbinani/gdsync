@@ -137,11 +137,14 @@ module GDSync
         created = src.copy_to(dest_dir, birthtime, mtime)
       elsif src.fs.can_create_io_stream?
         # typically Local to Remote copy.
-        created = dest_dir.create_file_with_read_io!(src.create_read_io, src.title, mtime, birthtime)
+        read_io = src.create_read_io
+        created = dest_dir.create_file_with_read_io!(read_io, src.title, mtime, birthtime)
+        read_io.close
       elsif dest_dir.fs.can_create_io_stream?
         # typically Remote to Local copy.
         created, io = dest_dir.create_write_io!(src.title)
         src.write_to(io)
+        io.close
       else
         @option.error('filesystem does not provide any file copy function')
       end
@@ -201,7 +204,9 @@ module GDSync
           if @option.dry_run?
             updated = DryRunFileSystem::File.new(dryrun_fs, dest_existing_file.path)
           elsif src_file.fs.can_create_io_stream?
-            updated = dest_existing_file.update!(src_file.create_read_io, mtime)
+            read_io = src_file.create_read_io
+            updated = dest_existing_file.update!(read_io, mtime)
+            read_io.close
           else
             dest_existing_file.delete!
             updated = _create_new_file(src_file, dest_dir)

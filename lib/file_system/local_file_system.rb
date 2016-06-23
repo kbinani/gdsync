@@ -67,7 +67,14 @@ module GDSync
       end
 
       def delete!
-        ::File.delete(@path)
+        3.times do
+          begin
+            ::FileUtils.remove_entry_secure(@path)
+          rescue
+          end
+          break unless ::File.exist?(@path)
+        end
+        raise "cannot delete file #{@path}" if ::File.exist?(@path)
       end
 
       def path
@@ -78,7 +85,9 @@ module GDSync
         f = ::File.new(@path)
         begin
           f.birthtime.to_datetime
-        rescue NotImplementedError => e
+        rescue ::NotImplementedError => e
+          f.mtime.to_datetime
+        rescue ::NoMethodError => e
           f.mtime.to_datetime
         end
       end
@@ -102,7 +111,13 @@ module GDSync
           e != '.' and e != '..'
         }.sort.each { |e|
           path = ::File.join(@path, e)
-          next if ::Gem.win_platform? && ::File.hidden?(path)
+          if ::Gem.win_platform?
+            begin
+              # ::File.hidden? may raise Errno:EXXX error.
+              next if ::File.hidden?(path)
+            rescue
+            end
+          end
           if ::File.directory?(path)
             dirs << Dir.new(@fs, path)
           else
@@ -129,7 +144,7 @@ module GDSync
 
       def create_file_with_read_io!(_io, _title, _mtime, _birthtime)
         newfile = ::File.join(@path, _title)
-        open(newfile, 'wb') { |f|
+        open(newfile, 'wb') { |f| 
           IO.copy_stream(_io, f)
         }
         ::File.utime(_mtime, _mtime, newfile)
@@ -144,7 +159,13 @@ module GDSync
       end
 
       def delete!
-        ::FileUtils.rm_r(@path)
+        3.times do
+          begin
+            ::FileUtils.remove_entry_secure(@path)
+          rescue
+          end
+          break unless ::File.exist?(@path)
+        end
       end
 
       def path
