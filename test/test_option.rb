@@ -10,9 +10,9 @@ class TestOption < ::Test::Unit::TestCase
   def test_validate
     options = GDSync::Option::SUPPORTED_OPTIONS
 
-    for num_options in (0..options.size) do
-      options.combination(num_options).each { |opts|
-        if opts.include?('--delete') && !(opts.include?('--recursive') or opts.include?('--dirs'))
+    (0..options.size).each do |num_options|
+      options.combination(num_options).each do |opts|
+        if opts.include?('--delete') && !(opts.include?('--recursive') || opts.include?('--dirs'))
           assert_raise_kind_of(RuntimeError) do
             GDSync::Option.new(opts)
           end
@@ -21,7 +21,7 @@ class TestOption < ::Test::Unit::TestCase
             GDSync::Option.new(opts)
           end
         end
-      }
+      end
     end
   end
 
@@ -38,10 +38,10 @@ class TestOption < ::Test::Unit::TestCase
 
   def test_minmax_size
     o = GDSync::Option.new(['--max-size=1.5mb-1'])
-    assert_equal(1499999, o.max_size)
+    assert_equal(1_499_999, o.max_size)
 
     o = GDSync::Option.new(['--min-size=2g+1'])
-    assert_equal(2147483649, o.min_size)
+    assert_equal(2_147_483_649, o.min_size)
 
     o = GDSync::Option.new(['--max-size=+1'])
     assert_equal(1, o.max_size)

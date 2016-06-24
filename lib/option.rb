@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 module GDSync
+  # Runtime options for GDSync::Sync.#run
   class Option
     SUPPORTED_OPTIONS = [
       '--checksum',
@@ -15,7 +16,7 @@ module GDSync
       '--size-only',
       '--update',
       '--dirs',
-      '--remove-source-files',
+      '--remove-source-files'
     ].freeze
 
     def initialize(options)
@@ -85,13 +86,9 @@ module GDSync
       @remove_source_files
     end
 
-    def max_size
-      @max_size
-    end
+    attr_reader :max_size
 
-    def min_size
-      @min_size
-    end
+    attr_reader :min_size
 
     def should_update?(src_file, dest_file)
       # Ignore sub-second part of mtime.
@@ -105,7 +102,7 @@ module GDSync
       elsif @ignore_times
         true
       else
-        src_file.size != dest_file.size or dest_file.mtime.to_time.to_i < src_file.mtime.to_time.to_i
+        src_file.size != dest_file.size || dest_file.mtime.to_time.to_i < src_file.mtime.to_time.to_i
       end
     end
 
@@ -114,35 +111,33 @@ module GDSync
     end
 
     def log_updated(file)
-      puts "#{file.path}#{file.is_dir? ? '/' : ''} (updated)" if @verbose
+      puts "#{file.path}#{file.dir? ? '/' : ''} (updated)" if @verbose
     end
 
     def log_created(file)
-      puts "#{file.path}#{file.is_dir? ? '/' : ''} (created)" if @verbose
+      puts "#{file.path}#{file.dir? ? '/' : ''} (created)" if @verbose
     end
 
     def log_deleted(file)
-      puts "#{file.path}#{file.is_dir? ? '/' : ''} (deleted)" if @verbose
+      puts "#{file.path}#{file.dir? ? '/' : ''} (deleted)" if @verbose
     end
 
     def log_extraneous(file)
-      puts "#{file.path}#{file.is_dir? ? '/' : ''} (extraneous)" if @verbose
+      puts "#{file.path}#{file.dir? ? '/' : ''} (extraneous)" if @verbose
     end
 
     def log_skip(file)
-      puts "#{file.path}#{file.is_dir? ? '/' : ''} (skip)" if @verbose
+      puts "#{file.path}#{file.dir? ? '/' : ''} (skip)" if @verbose
     end
 
     private
 
     def _validate
-      raise '--delete does not work without --recursive (-r) or --dirs (-d).' if @delete && !(@recursive or @dirs)
+      raise '--delete does not work without --recursive (-r) or --dirs (-d).' if @delete && !(@recursive || @dirs)
     end
 
     def _parse_size(options, option_name, default_value)
-      opt = options.select { |_|
-        _.start_with?(option_name)
-      }.first
+      opt = options.select { |o| o.start_with?(option_name) }.first
       return default_value if opt.nil?
 
       tokens = opt.split('=')
@@ -164,7 +159,7 @@ module GDSync
         'k' => 1024,
         'kib' => 1024,
         'm' => 1024 * 1024,
-        'mib' => 1024*1024,
+        'mib' => 1024 * 1024,
         'g' => 1024 * 1024 * 1024,
         'gib' => 1024 * 1024 * 1024,
         'kb' => 1000,
@@ -173,15 +168,15 @@ module GDSync
       }
 
       order = 1
-      valid_suffix_map.each { |suffix, o|
-        if size_string.end_with?(suffix)
-          size_string = size_string[0...(size_string.size - suffix.size)]
-          order = o
-          break
-        end
-      }
+      valid_suffix_map.each do |suffix, o|
+        next unless size_string.end_with?(suffix)
 
-      raise "#{option_name} value is invalid #{opt}" if size_string.chars.select { |ch| !(('0'..'9').to_a + ['.']).include?(ch) }.size > 0
+        size_string = size_string[0...(size_string.size - suffix.size)]
+        order = o
+        break
+      end
+
+      raise "#{option_name} value is invalid #{opt}" unless size_string.chars.select { |ch| !(('0'..'9').to_a + ['.']).include?(ch) }.empty?
       raise "#{option_name} value is invalid #{opt}" if size_string.empty? && order > 1
 
       base = 0

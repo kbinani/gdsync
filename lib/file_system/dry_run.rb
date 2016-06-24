@@ -2,13 +2,15 @@
 # frozen_string_literal: true
 
 module GDSync
+  # Dummy filesystem for --dry-run.
   class DryRunFileSystem < FileSystem
+    # Dummy File for --dry-run.
     class File < AbstractFile
       attr_reader :fs, :path
 
-      def initialize(_fs, _path)
-        @fs = _fs
-        @path = _path
+      def initialize(fs, path)
+        @fs = fs
+        @path = path
       end
 
       def title
@@ -32,7 +34,7 @@ module GDSync
       end
 
       def create_read_io
-        raise NotSupportedError.new
+        raise NotSupportedError
       end
 
       def write_to(_write_io)
@@ -42,41 +44,42 @@ module GDSync
         self
       end
 
-      def copy_to(_dest_dir)
-        File.new(::File.join(_dest_dir.path, title))
+      def copy_to(dest_dir)
+        File.new(::File.join(dest_dir.path, title))
       end
 
       def delete!
       end
     end
 
+    # Dummy Dir for --dry-run.
     class Dir < AbstractDir
       attr_reader :fs
       attr_reader :path
 
-      def initialize(_fs, _path)
-        @fs = _fs
-        @path = _path
+      def initialize(fs, path)
+        @fs = fs
+        @path = path
       end
 
       def title
         ::File.basename(path)
       end
 
-      def entries(&block)
+      def entries(&_block)
         true
       end
 
-      def create_dir!(_title)
-        Dir.new(fs, ::File.join(path, _title))
+      def create_dir!(title)
+        Dir.new(fs, ::File.join(path, title))
       end
 
-      def create_file_with_read_io!(_io, _title, _mtime, _birthtime)
-        File.new(fs, ::File.join(path, _title))
+      def create_file_with_read_io!(_io, title, _mtime, _birthtime)
+        File.new(fs, ::File.join(path, title))
       end
 
       def create_write_io!(_title)
-        raise NotSupportedError.new
+        raise NotSupportedError
       end
 
       def delete!

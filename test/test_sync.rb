@@ -35,22 +35,21 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   data do
-    options = []
-    if Gem.win_platform?
-      options = GDSync::Option::SUPPORTED_OPTIONS.select { |option|
-        # MSYS's rsync frequently reports 'Permission Denied(13)' errors when '--remove-source-files' option is set.
-        option != '--remove-source-files'
-      }
-    else
-      options = GDSync::Option::SUPPORTED_OPTIONS
-    end
+    options = if Gem.win_platform?
+                GDSync::Option::SUPPORTED_OPTIONS.select do |option|
+                  # MSYS's rsync frequently reports 'Permission Denied(13)' errors when '--remove-source-files' option is set.
+                  option != '--remove-source-files'
+                end
+              else
+                GDSync::Option::SUPPORTED_OPTIONS
+              end
 
     data_list = {}
-    for num_options in (0..options.size) do
-      options.combination(num_options).each { |rsync_options|
+    (0..options.size).each do |num_options|
+      options.combination(num_options).each do |rsync_options|
         key = rsync_options.join(' ')
         data_list[key] = rsync_options
-      }
+      end
     end
     data_list
   end
@@ -86,7 +85,7 @@ class TestSync < ::Test::Unit::TestCase
       return
     end
 
-    _separator("=") if VERBOSE
+    _separator('=') if VERBOSE
 
     assert_mtime = rsync_options.include?('--times')
     assert_checksum = rsync_options.include?('--checksum')
@@ -127,13 +126,13 @@ class TestSync < ::Test::Unit::TestCase
 
     if VERBOSE
       _separator
-      puts "RSYNC_SRC(after#1):"
+      puts 'RSYNC_SRC(after#1):'
       _tree(rsync_fixtures)
-      puts "GDSYNC_SRC(after#1):"
+      puts 'GDSYNC_SRC(after#1):'
       _tree(gdsync_fixtures)
-      puts "RSYNC_DEST(after#1):"
+      puts 'RSYNC_DEST(after#1):'
       _tree(rsync_dest)
-      puts "GDSYNC_DEST(after#1):"
+      puts 'GDSYNC_DEST(after#1):'
       _tree(gdsync_dest)
     end
 
@@ -143,69 +142,69 @@ class TestSync < ::Test::Unit::TestCase
 
     # Modify 'fixtures'.
     updating_src_start_datetime = DateTime.now
-    [rsync_fixtures, gdsync_fixtures].each { |d|
+    [rsync_fixtures, gdsync_fixtures].each do |d|
       _rm_rf(File.join(d, 'delete_local'))
       _rm_rf(File.join(d, 'delete_local_file.txt'))
 
       edited_local_file = File.join(d, 'sub', 'edited_local_file.txt')
       if File.exist?(edited_local_file)
-        open(edited_local_file, 'wb') { |f|
+        open(edited_local_file, 'wb') do |f|
           f << 'a'
-        }
+        end
       end
 
       edited_but_same_mtime_local_file = File.join(d, 'sub', 'edited_but_same_mtime_local_file.txt')
       if File.exist?(edited_but_same_mtime_local_file)
         mtime = File.mtime(edited_but_same_mtime_local_file)
-        open(edited_but_same_mtime_local_file, 'wb') { |f|
+        open(edited_but_same_mtime_local_file, 'wb') do |f|
           f << 'c'
-        }
+        end
         _utime(mtime, edited_but_same_mtime_local_file)
       end
 
       edited_but_same_mtime_and_same_size_local_file = File.join(d, 'sub', 'edited_but_same_mtime_and_same_size_local_file.txt')
       if File.exist?(edited_but_same_mtime_and_same_size_local_file)
         mtime = File.mtime(edited_but_same_mtime_and_same_size_local_file)
-        open(edited_but_same_mtime_local_file, 'wb') { |f|
+        open(edited_but_same_mtime_local_file, 'wb') do |f|
           f.write('A')
-        }
+        end
         _utime(mtime, edited_but_same_mtime_and_same_size_local_file)
       end
-    }
+    end
     elapsed_seconds_updating_src = (DateTime.now - updating_src_start_datetime).to_f * 24 * 60 * 60
 
     # Modify 'dest' and 'expected'
     mid = with_trailing_slash ? '' : '/fixtures'
     updating_dest_start_datetime = DateTime.now
-    [rsync_dest, gdsync_dest].each { |d|
+    [rsync_dest, gdsync_dest].each do |d|
       _rm_rf(File.join("#{d}#{mid}", 'delete_remote'))
       _rm_rf(File.join("#{d}#{mid}", 'delete_remote_file.txt'))
 
       edited_remote_file = File.join("#{d}#{mid}", 'sub', 'edited_remote_file.txt')
       if File.exist?(edited_remote_file)
-        open(edited_remote_file, 'wb') { |f|
+        open(edited_remote_file, 'wb') do |f|
           f << 'b'
-        }
+        end
       end
 
       edited_but_same_mtime_remote_file = File.join("#{d}#{mid}", 'sub', 'edited_but_same_mtime_remote_file.txt')
       if File.exist?(edited_but_same_mtime_remote_file)
         mtime = File.mtime(edited_but_same_mtime_remote_file)
-        open(edited_but_same_mtime_remote_file, 'wb') { |f|
+        open(edited_but_same_mtime_remote_file, 'wb') do |f|
           f << 'd'
-        }
+        end
         _utime(mtime, edited_but_same_mtime_remote_file)
       end
 
       edited_but_same_mtime_and_same_size_remote_file = File.join("#{d}#{mid}", 'sub', 'edited_but_same_mtime_and_same_size_remote_file.txt')
       if File.exist?(edited_but_same_mtime_and_same_size_remote_file)
         mtime = File.mtime(edited_but_same_mtime_and_same_size_remote_file)
-        open(edited_but_same_mtime_and_same_size_remote_file, 'wb') { |f|
+        open(edited_but_same_mtime_and_same_size_remote_file, 'wb') do |f|
           f.write('A')
-        }
+        end
         _utime(mtime, edited_but_same_mtime_and_same_size_remote_file)
       end
-    }
+    end
     elapsed_seconds_updating_dest = (DateTime.now - updating_dest_start_datetime).to_f * 24 * 60 * 60
 
     # Second run rsync
@@ -221,13 +220,13 @@ class TestSync < ::Test::Unit::TestCase
 
     if VERBOSE
       _separator
-      puts "RSYNC_SRC(after#2):"
+      puts 'RSYNC_SRC(after#2):'
       _tree(rsync_fixtures)
-      puts "GDSYNC_SRC(after#2):"
+      puts 'GDSYNC_SRC(after#2):'
       _tree(gdsync_fixtures)
-      puts "RSYNC_DEST(after#2):"
+      puts 'RSYNC_DEST(after#2):'
       _tree(rsync_dest)
-      puts "GDSYNC_DEST(after#2):"
+      puts 'GDSYNC_DEST(after#2):'
       _tree(gdsync_dest)
     end
 
@@ -237,11 +236,11 @@ class TestSync < ::Test::Unit::TestCase
   end
 
   def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum, mtime_tolerance_second)
-    e = Dir.entries(expected, encoding: Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
-    a = Dir.entries(actual, encoding: Encoding::UTF_8).select { |_| _ != '.' && _ != '..' }.sort
+    e = Dir.entries(expected, encoding: Encoding::UTF_8).select { |name| name != '.' && name != '..' }.sort
+    a = Dir.entries(actual, encoding: Encoding::UTF_8).select { |name| name != '.' && name != '..' }.sort
     assert_equal(e, a)
 
-    for i in (0...e.size) do
+    (0...e.size).each do |i|
       epath = File.join(expected, e[i])
       apath = File.join(actual, a[i])
 
@@ -284,27 +283,28 @@ class TestSync < ::Test::Unit::TestCase
   def _tree(dir)
     opt = Gem.win_platform? ? '/F' : ''
     lines = `tree #{opt} #{dir}`.lines
-    if Gem.win_platform?
-      lines = lines.slice(3, lines.size)
-    else
-      lines = lines.slice(1, lines.size - 3)
-    end
-    lines.each { |line|
+    lines = if Gem.win_platform?
+              lines.slice(3, lines.size)
+            else
+              lines.slice(1, lines.size - 3)
+            end
+    lines.each do |line|
       puts line
-    }
+    end
   end
 
-  def _separator(char = "-")
+  def _separator(char = '-')
     puts char * 83
   end
 
   def _rm_rf(path)
     # Retry till the path did actually disappear:
     # this is a workaround on Windows environment.
-    while File.exist?(path) do
+    while File.exist?(path)
       begin
         FileUtils.remove_entry_secure(path)
       rescue
+        next
       end
     end
   end
@@ -323,28 +323,28 @@ class TestSync < ::Test::Unit::TestCase
       wide_path = path.wincode
       attributes = ::Windows::File::Functions::GetFileAttributesW(wide_path)
       attributes &= ~::Windows::File::Constants::FILE_ATTRIBUTE_READONLY
-      raise "Error" unless ::Windows::File::Functions::SetFileAttributesW(wide_path, attributes)
+      raise 'Error' unless ::Windows::File::Functions::SetFileAttributesW(wide_path, attributes)
 
-      Dir.entries(path, encoding: Encoding::UTF_8).select { |e|
-        e != '.' && e != '..'
-      }.each { |e|
-        p = File.join(path, e)
-        _remove_readonly_attribute(p)
-      }
+      Dir.entries(path, encoding: Encoding::UTF_8)
+         .select { |e| e != '.' && e != '..' }
+         .each do |e|
+           p = File.join(path, e)
+           _remove_readonly_attribute(p)
+         end
     else
       f = File.new(path)
-      mtime = f.mtime
       f.readonly = false
       File.chmod(0644, path)
     end
   end
 
   def _utime(mtime, path)
-    while true do
+    loop do
       begin
         File.utime(mtime, mtime, path)
         break
       rescue
+        next
       end
     end
   end

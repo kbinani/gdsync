@@ -8,6 +8,4 @@ SimpleCov.start do
   add_filter '/test'
 end
 
-if ENV['CI'] === 'true'
-  Coveralls.wear!
-end
+Coveralls.wear! if ENV['CI'] == 'true'

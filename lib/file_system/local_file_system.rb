@@ -2,13 +2,12 @@
 # frozen_string_literal: true
 
 require 'digest/md5'
-
-if Gem.win_platform?
-  require 'win32/file/attributes'
-end
+require 'win32/file/attributes' if Gem.win_platform?
 
 module GDSync
+  # FileSystem implementation for local storage.
   class LocalFileSystem < FileSystem
+    # AbstractFile implementation for LocalFileSystem.
     class File < AbstractFile
       def initialize(fs, path)
         @fs = fs
@@ -29,41 +28,36 @@ module GDSync
       end
 
       def md5
-        if @md5.nil?
-          @md5 = ::Digest::MD5.file(@path).to_s
-        end
-
+        @md5 ||= ::Digest::MD5.file(@path).to_s
         @md5
       end
 
-      def fs
-        @fs
-      end
+      attr_reader :fs
 
       def create_read_io
         open(@path, 'rb')
       end
 
       def write_to(write_io)
-        open(@path, 'rb') { |f|
+        open(@path, 'rb') do |f|
           ::IO.copy_stream(f, write_io)
-        }
+        end
       end
 
-      def copy_to(_dest_dir, _birthtime, _mtime)
-        file, io = _dest_dir.create_write_io!(title)
+      def copy_to(dest_dir, _birthtime, mtime)
+        file, io = dest_dir.create_write_io!(title)
         write_to(io)
         io.close
-        ::File.utime(_mtime.to_time, _mtime.to_time, file.path)
+        ::File.utime(mtime.to_time, mtime.to_time, file.path)
 
         file
       end
 
-      def update!(read_io, _mtime)
-        open(@path, 'wb') { |f|
+      def update!(read_io, mtime)
+        open(@path, 'wb') do |f|
           ::IO.copy_stream(read_io, f)
-        }
-        ::File.utime(_mtime.to_time, _mtime.to_time, @path)
+        end
+        ::File.utime(mtime.to_time, mtime.to_time, @path)
       end
 
       def delete!
@@ -77,22 +71,21 @@ module GDSync
         raise "cannot delete file #{@path}" if ::File.exist?(@path)
       end
 
-      def path
-        @path
-      end
+      attr_reader :path
 
       def birthtime
         f = ::File.new(@path)
         begin
           f.birthtime.to_datetime
-        rescue ::NotImplementedError => e
+        rescue ::NotImplementedError
           f.mtime.to_datetime
-        rescue ::NoMethodError => e
+        rescue ::NoMethodError
           f.mtime.to_datetime
         end
       end
     end
 
+    # AbstractDir implementation for LocalFileSystem.
     class Dir < AbstractDir
       def initialize(fs, path)
         @fs = fs
@@ -103,56 +96,53 @@ module GDSync
         ::File.basename(@path)
       end
 
-      def entries(&block)
+      def entries(&_block)
         dirs = []
         files = []
 
-        ::Dir.entries(@path, :encoding => ::Encoding::UTF_8).select { |e|
-          e != '.' and e != '..'
-        }.sort.each { |e|
-          path = ::File.join(@path, e)
-          if ::Gem.win_platform?
-            begin
-              # ::File.hidden? may raise Errno:EXXX error.
-              next if ::File.hidden?(path)
-            rescue
-            end
-          end
-          if ::File.directory?(path)
-            dirs << Dir.new(@fs, path)
-          else
-            files << File.new(@fs, path)
-          end
-        }
+        ::Dir.entries(@path, encoding: ::Encoding::UTF_8)
+             .select { |e| e != '.' && e != '..' }
+             .sort
+             .each do |e|
+               path = ::File.join(@path, e)
+               if ::Gem.win_platform?
+                 begin
+                   # ::File.hidden? may raise Errno:EXXX error.
+                   next if ::File.hidden?(path)
+                 rescue
+                 end
+               end
+               if ::File.directory?(path)
+                 dirs << Dir.new(@fs, path)
+               else
+                 files << File.new(@fs, path)
+               end
+             end
 
-        (dirs + files).each { |f|
-          block.call(f)
-        }
+        (dirs + files).each { |f| yield(f) }
 
         true
       end
 
-      def fs
-        @fs
-      end
+      attr_reader :fs
 
-      def create_dir!(_title)
-        newpath = ::File.join(@path, _title)
+      def create_dir!(title)
+        newpath = ::File.join(@path, title)
         ::Dir.mkdir(newpath)
         Dir.new(@fs, newpath)
       end
 
-      def create_file_with_read_io!(_io, _title, _mtime, _birthtime)
-        newfile = ::File.join(@path, _title)
-        open(newfile, 'wb') { |f| 
-          IO.copy_stream(_io, f)
-        }
-        ::File.utime(_mtime, _mtime, newfile)
+      def create_file_with_read_io!(io, title, mtime, _birthtime)
+        newfile = ::File.join(@path, title)
+        open(newfile, 'wb') do |f|
+          ::IO.copy_stream(io, f)
+        end
+        ::File.utime(mtime, mtime, newfile)
         File.new(@fs, newfile)
       end
 
-      def create_write_io!(_title)
-        newfile = ::File.join(@path, _title)
+      def create_write_io!(title)
+        newfile = ::File.join(@path, title)
         io = open(newfile, 'wb')
         file = File.new(@fs, newfile)
         return file, io
@@ -168,9 +158,7 @@ module GDSync
         end
       end
 
-      def path
-        @path
-      end
+      attr_reader :path
     end
 
     def can_create_io_stream?
@@ -184,8 +172,6 @@ module GDSync
         else
           File.new(self, path)
         end
-      else
-        nil
       end
     end
   end

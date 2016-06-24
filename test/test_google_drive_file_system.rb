@@ -95,9 +95,9 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
     def test_entries
       dir = @fs.find('googledrive://gdsync/test/google_drive_file_system_test')
       entries = []
-      dir.entries { |e|
+      dir.entries do |e|
         entries << e
-      }
+      end
       assert_equal(4, entries.size)
 
       assert_true(entries[0].is_a?(::GDSync::GoogleDriveFileSystem::Dir))
@@ -117,9 +117,9 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
       mtime = DateTime.now
       birthtime = mtime - 1
       created = nil
-      open('test/test_google_drive_file_system.rb', 'rb') { |f|
+      open('test/test_google_drive_file_system.rb', 'rb') do |f|
         created = @work.create_file_with_read_io!(f, 'foo.rb', mtime, birthtime)
-      }
+      end
 
       assert_not_nil(created)
       assert_equal(mtime.to_time.to_i, created.mtime.to_time.to_i)
@@ -155,8 +155,8 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
       assert_equal('a.txt', @a_txt.title)
       assert_equal(44, @a_txt.size)
       assert_equal('e707077c501af6da965b1e23ab13cf07', @a_txt.md5)
-      assert_equal(1466480938, @a_txt.mtime.to_time.to_i)
-      assert_equal(1466480938, @a_txt.birthtime.to_time.to_i)
+      assert_equal(1_466_480_938, @a_txt.mtime.to_time.to_i)
+      assert_equal(1_466_480_938, @a_txt.birthtime.to_time.to_i)
       assert_equal(@fs.object_id, @a_txt.fs.object_id)
       assert_equal('googledrive://gdsync/test/google_drive_file_system_test/a.txt', @a_txt.path)
     end
@@ -195,7 +195,7 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
         # prepare a file to upload.
         upload_file = File.join(workdir, 'upload.txt')
         open(upload_file, 'wb') do |file|
-          r = Random::new(DateTime.now.to_time.to_i)
+          r = Random.new(DateTime.now.to_time.to_i)
           file.write(r.bytes(49))
         end
         upload_file_md5 = Digest::MD5.file(upload_file).to_s

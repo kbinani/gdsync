@@ -33,8 +33,8 @@ parser.separator('        gdsync -a googledrive://sourcedir googledrive://destdi
 
 args = parser.parse(ARGV)
 
-raise "Too few arguments" if args.size < 2
-raise "Too many arguments" if args.size > 2
+raise 'Too few arguments' if args.size < 2
+raise 'Too many arguments' if args.size > 2
 
 src = args[0]
 dest = args[1]
