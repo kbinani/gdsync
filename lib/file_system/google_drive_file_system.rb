@@ -26,7 +26,7 @@ module GDSync
       end
 
       def mtime
-        @file.modified_time
+        @file.api_file.modified_time
       end
 
       def md5
@@ -49,7 +49,6 @@ module GDSync
         request_object = {
           name: title,
           parents: [_dest_dir.id],
-          created_time: _birthtime.rfc3339,
           modified_time: _mtime.rfc3339,
         }
         params = {
@@ -59,6 +58,7 @@ module GDSync
         if file.nil?
           nil
         else
+          file.reload_metadata
           File.new(@fs, file, ::File.join(_dest_dir.path, title))
         end
       end
@@ -72,6 +72,7 @@ module GDSync
         }
         api_file = @fs.session.drive.update_file(@file.id, request_object, params)
         file = @fs.session.wrap_api_file(api_file)
+        file.reload_metadata
         File.new(@fs, file, @path)
       end
 
@@ -84,7 +85,7 @@ module GDSync
       end
 
       def birthtime
-        @file.created_time
+        @file.api_file.created_time
       end
     end
 

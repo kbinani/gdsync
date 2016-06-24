@@ -130,6 +130,10 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
       expected_md5 = ::Digest::MD5.file('test/test_google_drive_file_system.rb').to_s
       assert_equal(expected_md5, created.md5)
     end
+
+    def test_fs
+      assert_equal(@fs.object_id, @dir.fs.object_id)
+    end
   end
 
   sub_test_case 'File' do
@@ -140,10 +144,86 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
       @test_dir = 'googledrive://gdsync/test/temporary'
       @dir = @fs.find(@test_dir)
       @work = @dir.create_dir!('tmp')
+      @a_txt = @fs.find('googledrive://gdsync/test/google_drive_file_system_test/a.txt')
     end
 
     def teardown
       @dir.delete!
+    end
+
+    def test_properties
+      assert_equal('a.txt', @a_txt.title)
+      assert_equal(44, @a_txt.size)
+      assert_equal('e707077c501af6da965b1e23ab13cf07', @a_txt.md5)
+      assert_equal(1466480938, @a_txt.mtime.to_time.to_i)
+      assert_equal(1466480938, @a_txt.birthtime.to_time.to_i)
+      assert_equal(@fs.object_id, @a_txt.fs.object_id)
+      assert_equal('googledrive://gdsync/test/google_drive_file_system_test/a.txt', @a_txt.path)
+    end
+
+    def test_create_read_io
+      assert_raise_kind_of(::GDSync::FileSystem::NotSupportedError) do
+        @a_txt.create_read_io
+      end
+    end
+
+    def test_write_to
+      Dir.mktmpdir do |workdir|
+        downloaded = File.join(workdir, 'downloaded.txt')
+        open(downloaded, 'wb') do |file|
+          @a_txt.write_to(file)
+        end
+        assert_true(File.exist?(downloaded))
+        assert_equal(@a_txt.md5, Digest::MD5.file(downloaded).to_s)
+      end
+    end
+
+    def test_copy_to
+      mtime = DateTime.now - 1
+      birthtime = DateTime.now - 2
+      copied = @a_txt.copy_to(@work, birthtime, mtime)
+      assert_not_nil(copied)
+      assert_equal(@a_txt.title, copied.title)
+      assert_equal(mtime.to_time.to_i, copied.mtime.to_time.to_i)
+
+      # `birthtime' is automatically set by Google Drive.
+      # We cannot specify them.
+    end
+
+    def test_create_update_delete
+      Dir.mktmpdir do |workdir|
+        # prepare a file to upload.
+        upload_file = File.join(workdir, 'upload.txt')
+        open(upload_file, 'wb') do |file|
+          r = Random::new(DateTime.now.to_time.to_i)
+          file.write(r.bytes(49))
+        end
+        upload_file_md5 = Digest::MD5.file(upload_file).to_s
+
+        # create temporary update/delete target file.
+        created = @a_txt.copy_to(@work, DateTime.now, DateTime.now)
+
+        # update target file by uploading.
+        before_md5 = created.md5
+        assert_equal(@a_txt.md5, created.md5)
+        mtime = DateTime.now - 1
+        after_updated = nil
+        open(upload_file, 'rb') do |file|
+          after_updated = created.update!(file, mtime)
+        end
+
+        assert_not_nil(after_updated)
+        assert_not_equal(before_md5, after_updated.md5)
+        assert_equal(upload_file_md5, after_updated.md5)
+        assert_equal(Digest::MD5.file(upload_file).to_s, after_updated.md5)
+        assert_equal(mtime.to_time.to_i, after_updated.mtime.to_time.to_i)
+
+        # delete
+        path = created.path
+        created.delete!
+        not_found = @fs.find(path)
+        assert_nil(not_found)
+      end
     end
   end
 end
