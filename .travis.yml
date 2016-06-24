@@ -1,7 +1,5 @@
 language: ruby
-env:
-  global:
-    secure: AZtP1/C7Dn1ZSwIvMoljk10OoKVCTEXelhZ/oXIIKEmJtodOArW5yQoJ+NZExgUof5Wlvr+Us+OE11yDb5qL/4ac1nOYCuvk9Q+kgevAIQWj6Qe3eSKCb/tG2AVNWqfqlY2XNRqOuSs2p3A9KGF2eOWVRHiQ5LZ1U/qjS5eqrZ965rUnQnI69x5y9q62+8Aq9JzW5wJKNw49Zam0dXFnPaz8ZE63i8LteGWoTOy0cMuT0OGTFKTeftLXPANHyy/xoJL2qmryX20LsUblnZHnZNhXl3lPvZs0XOGy0+usToSI+X5WUOZcocCzzwW/f9YXTEnluvyQej6TLg+dvMRWcQyZM/Tmb1kqDcpgVk0hdXE6Q8Q4WIRmdB2g1NJ5ekzZc/OOZ5agzLdq0HATxkds/y4oELgIwgOKObOyotLEgGcvO0DlHSIzDJJA1wECMOyOTmUD7OczT2t8z5zy38TyL2SiYPUtQ6gga53Ollumjei2FsAdJoltpW29/QCvTeyHJAy2gdpwe7UMN8twWHItZasxtiiVqYgmHxjwjFgOTGK7/O4ONhqCBhyK1oIsoY8LfnmMTw4hoVKeUW/UsVjvvFHrL1l/XYc2unimL+RZjx9w5S6ON5SYg2oozdIBBgiUviu8N1/G9ScUGBJmoQbKHo83nlvXH2mkBzryl43Z2ZM=
+before_install:
+  - openssl aes-256-cbc -K $encrypted_8bba747935e8_key -iv $encrypted_8bba747935e8_iv -in .travis.secure -out config.json -d
 script:
-  - printenv CONFIG_BLOB > config.json
   - travis_wait 30 rake
