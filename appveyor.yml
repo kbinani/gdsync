@@ -2,22 +2,15 @@ environment:
   CONFIG_BLOB:
     secure: pOMC8UHA7J4JM+YQPwzyn2Sf6UBIrqH6fuMtdoKSUQvBsdWRXSAMP1qsRc1C9cBZf6q9GnjT9k4H9m2WWEJdnwAG0z6WwDlhaJvxycnu1vsGn+pBJ311HnruwK2lrbciUt6gLCE1DN7g3ru93eD1nOksTjLSz2R2MP8XIlT+3x4xg4fz00DxlCjQvgQWiClRgGLarzMyIq9U2vVJmFKZePI77obIvsc8w5qIlU5ranKeQ2yWVEHqGKbyNnlNgHZD/lL5umRvwy3mCQ4CQ8rWKQ+rpAjT8uAxI2uFBLcLAWI/3APZa7pdnRY+OPrShg5NqUyljumx6yjxoo8B0wjvMu+1upWOsC4G2zyI6pJSYdI+p5GKg2EuMTIkTxj10s7T
 install:
-- cmd: >-
-    set PATH=C:\Ruby23-x64\bin;C:\MinGW\bin;C:\MinGW\msys\1.0\bin;%PATH%
-
-    mingw-get install msys-rsync
-
-    rsync --version
-
-    ruby --version
-
-    bundle --version
-
-    rake --version
-
-    bundle install
-
-    ruby -e 'print ENV["CONFIG_BLOB"]' > config.json
+  - set PATH=C:\Ruby23-x64\bin;C:\MinGW\bin;C:\MinGW\msys\1.0\bin;%PATH%
+  - mingw-get install msys-rsync
+  - bundle install
+build: off
+before_test:
+  - rsync --version
+  - ruby --version
+  - bundle --version
+  - rake --version
+  - ruby -e 'print ENV["CONFIG_BLOB"]' > config.json
 test_script:
-- cmd: >-
-    rake
+  - rake
