@@ -5,6 +5,8 @@ install:
   - set PATH=C:\Ruby23-x64\bin;C:\MinGW\bin;C:\MinGW\msys\1.0\bin;%PATH%
   - mingw-get install msys-rsync
   - bundle install
+  - gem uninstall ffi --all --ignore-dependencies
+  - gem install ffi --platform ruby
 build: off
 before_test:
   - rsync --version
