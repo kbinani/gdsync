@@ -8,6 +8,14 @@ module GDSync
   class GoogleDriveFileSystem < FileSystem
     URL_SCHEMA = 'googledrive://'.freeze
 
+    # Google Drive api request limit in 100 seconds.
+    # Default value is: requests per 100 seconds per user := 1,000 
+    # See: https://console.developers.google.com/apis/api/drive/quotas
+    API_RATE_LIMIT = 1000
+
+    # API call will be rejected if the number of api call exceeds #{API_RATE_LIMIT} in #{API_RATE_LIMIT_WINDOW} seconds.
+    API_RATE_LIMIT_WINDOW = 100.0
+
     # AbstractFile implementation for GoogleDriveFileSystem.
     class File < AbstractFile
       # @param  [GoogleDriveFileSystem]  fs
@@ -42,7 +50,7 @@ module GDSync
       end
 
       def write_to(write_io)
-        @file.download_to_io(write_io)
+        @fs.call_api(@file, :download_to_io, write_io)
       end
 
       def copy_to(dest_dir, _birthtime, mtime)
@@ -53,12 +61,12 @@ module GDSync
         }
         params = {
         }
-        api_file = @fs.session.drive.copy_file(@file.id, request_object, params)
+        api_file = @fs.call_api(@fs.session.drive, :copy_file, @file.id, request_object, params)
         file = @fs.session.wrap_api_file(api_file)
         if file.nil?
           nil
         else
-          file.reload_metadata
+          @fs.call_api(file, :reload_metadata)
           File.new(@fs, file, ::File.join(dest_dir.path, title))
         end
       end
@@ -70,9 +78,9 @@ module GDSync
         params = {
           upload_source: read_io
         }
-        api_file = @fs.session.drive.update_file(@file.id, request_object, params)
+        api_file = @fs.call_api(@fs.session.drive, :update_file, @file.id, request_object, params)
         file = @fs.session.wrap_api_file(api_file)
-        file.reload_metadata
+        @fs.call_api(file, :reload_metadata)
         File.new(@fs, file, @path)
       end
 
@@ -106,7 +114,7 @@ module GDSync
         dirs = []
         files = []
         begin
-          @collection.files do |file|
+          @fs.call_api(@collection, :files) do |file|
             unless file.explicitly_trashed
               if file.is_a?(::GoogleDrive::Collection)
                 dirs << file
@@ -135,7 +143,7 @@ module GDSync
 
       def create_dir!(title)
         begin
-          created = @collection.create_subcollection(title)
+          created = @fs.call_api(@collection, :create_subcollection, title)
           return Dir.new(@fs, created, ::File.join(@path, title)) unless created.nil?
         rescue
           return nil
@@ -158,7 +166,7 @@ module GDSync
         dest_file = nil
 
         begin
-          api_file = @fs.session.drive.create_file(request_object, params)
+          api_file = @fs.call_api(@fs.session.drive, :create_file, request_object, params)
           dest_file = @fs.session.wrap_api_file(api_file)
         rescue
           return nil
@@ -193,6 +201,8 @@ module GDSync
         ENV['SSL_CERT_FILE'] = cert_path if ::File.exist?(cert_path)
       end
       @session = ::GoogleDrive.saved_session(config_file_path)
+      # Stores ::Time for each API call.
+      @api_call_history = []
     end
 
     def can_create_io_stream?
@@ -212,7 +222,7 @@ module GDSync
         path = ::File.join(path, path_element)
 
         # find directory first.
-        child = collection.subcollection_by_title(path_element)
+        child = call_api(collection, :subcollection_by_title, path_element)
         unless child.nil?
           child = nil if child.explicitly_trashed
         end
@@ -221,7 +231,7 @@ module GDSync
           return Dir.new(self, child, path) unless child.nil?
 
           # directory not found. then search file
-          child = collection.file_by_title(path_element)
+          child = call_api(collection, :file_by_title, path_element)
           return nil if child.nil?
 
           return nil if child.explicitly_trashed
@@ -238,5 +248,27 @@ module GDSync
     # Get GoogleDrive::Session object.
     # @return [GoogleDrive::Session]
     attr_reader :session
+
+    # Call Google Drive API related method
+    # @param [Object] object
+    # @param [String] method_name
+    def call_api(object, method_name, *args, &block)
+      now = ::Time.now
+
+      @api_call_history.delete_if { |t| t < now - API_RATE_LIMIT_WINDOW }
+
+      if @api_call_history.size >= API_RATE_LIMIT
+        seconds_to_sleep = @api_call_history[0] + API_RATE_LIMIT_WINDOW - now
+
+        if seconds_to_sleep > 0
+          sleep(seconds_to_sleep)
+          slept_now = ::Time.now
+          @api_call_history.delete_if { |t| t < slept_now - API_RATE_LIMIT_WINDOW }
+        end
+      end
+
+      @api_call_history << ::Time.now
+      object.public_send(method_name, *args, &block)
+    end
   end
 end
