@@ -9,4 +9,6 @@ gem 'coveralls', require: false
 group :development, :test do
   gem 'test-unit'
   gem 'simplecov'
+  gem 'parallel'
+  gem 'ruby-progressbar'
 end

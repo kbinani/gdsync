@@ -5,8 +5,11 @@ require_relative 'test_helper.rb'
 require 'test/unit'
 require 'tmpdir'
 require 'pathname'
+require 'parallel'
 require_relative '../lib/sync.rb'
 require_relative '../lib/option.rb'
+
+STDOUT_MUTEX = Mutex.new
 
 class TestSync < ::Test::Unit::TestCase
   OPTIONS = GDSync::Option::SUPPORTED_OPTIONS
@@ -28,48 +31,76 @@ class TestSync < ::Test::Unit::TestCase
     end
     @temp_dir = File.join(temp_dir_root, 'gdsync_sync_test')
     Dir.mkdir(@temp_dir) unless File.directory?(@temp_dir)
+    @ci = "#{ENV['CI']}".downcase == 'true'
   end
 
   def teardown
     _rm_rf(@temp_dir)
   end
 
-  data do
+  def test_run
     options = if Gem.win_platform?
-                GDSync::Option::SUPPORTED_OPTIONS.select do |option|
+                GDSync::Option::SUPPORTED_OPTIONS.reject do |option|
                   # MSYS's rsync frequently reports 'Permission Denied(13)' errors when '--remove-source-files' option is set.
-                  option != '--remove-source-files'
+                  option == '--remove-source-files'
                 end
               else
                 GDSync::Option::SUPPORTED_OPTIONS
               end
 
-    data_list = {}
+    data_list = []
     (0..options.size).each do |num_options|
       options.combination(num_options).each do |rsync_options|
         key = rsync_options.join(' ')
-        data_list[key] = rsync_options
+        data_list << rsync_options
       end
     end
-    data_list
-  end
-  def test_run(data)
-    rsync_options = data
-    _run(rsync_options)
+
+    concurrency = @ci ? 128 : Parallel.processor_count * 2
+    puts "Concurrency: #{concurrency}"
+    puts "Process Count: #{Parallel.processor_count}"
+    progress = @ci ? nil : 'Running tests'
+    Parallel.each(data_list, in_threads: concurrency, progress: progress) do |rsync_options|
+      if @ci
+        STDOUT_MUTEX.synchronize do
+          puts rsync_options.join(' ')
+        end
+      end
+      _run(rsync_options)
+    end
   end
 
   private
 
   VERBOSE = false
+  RETRY_COUNT = 5
 
   def _run(rsync_options)
-    workdir = Dir.mktmpdir('d', @temp_dir)
-    _case(rsync_options, workdir, false)
-    _rm_rf(workdir)
+    [false, true].each do |with_trailing_slash|
+      retry_count = 0
+      loop do
+        workdir = Dir.mktmpdir('d', @temp_dir)
+        ok = true
+        begin
+          _case(rsync_options, workdir, with_trailing_slash)
+        rescue => e
+          ok = false
+        end
+        _rm_rf(workdir)
 
-    workdir = Dir.mktmpdir('d', @temp_dir)
-    _case(rsync_options, workdir, true)
-    _rm_rf(workdir)
+        if ok
+          break
+        else
+          retry_count += 1
+          message = "Test failed: rsync_options=#{rsync_options.join(' ')}, with_trailing_slash: #{with_trailing_slash}, retry_count: #{retry_count}"
+          if retry_count > RETRY_COUNT
+            raise message
+          else
+            puts message
+          end
+        end
+      end
+    end
   end
 
   def _case(rsync_options, workdir, with_trailing_slash)
@@ -93,14 +124,13 @@ class TestSync < ::Test::Unit::TestCase
     # Create copy of 'test/fixtures' directory.
     # The contents in it will be edited for testing purpouse (this is the reason why we create a copy of it).
     rsync_fixtures = File.join(workdir, 'rsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
-    FileUtils.mkdir_p(rsync_fixtures)
-    _rsync('test/fixtures/', rsync_fixtures, ['-a'])
-    _remove_readonly_attribute(rsync_fixtures)
+    # FileUtils.mkdir_p(rsync_fixtures)
+    FileUtils.mkdir_p(File.join(workdir, 'rsync_fixtures'))
+    _cp_r('test/fixtures', File.join(workdir, 'rsync_fixtures'))
 
     gdsync_fixtures = File.join(workdir, 'gdsync_fixtures', "fixtures#{with_trailing_slash ? '/' : ''}")
-    FileUtils.mkdir_p(gdsync_fixtures)
-    _rsync('test/fixtures/', gdsync_fixtures, ['-a'])
-    _remove_readonly_attribute(gdsync_fixtures)
+    FileUtils.mkdir_p(File.join(workdir, 'gdsync_fixtures'))
+    _cp_r('test/fixtures', File.join(workdir, 'gdsync_fixtures'))
 
     # Run rsync(1) to create *expected* directory structure.
     rsync_dest = File.join(workdir, 'rsync_dest')
@@ -119,10 +149,8 @@ class TestSync < ::Test::Unit::TestCase
     puts cmd if VERBOSE
 
     # Run GDSync::Sync#run
-    assert_nothing_raised do
-      sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
-      sync.run
-    end
+    sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
+    sync.run
 
     if VERBOSE
       _separator
@@ -213,10 +241,8 @@ class TestSync < ::Test::Unit::TestCase
     _remove_readonly_attribute(rsync_dest)
 
     # Second run GDSync::Sync#run
-    assert_nothing_raised do
-      sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
-      sync.run
-    end
+    sync = GDSync::Sync.new([gdsync_fixtures], gdsync_dest, opt)
+    sync.run
 
     if VERBOSE
       _separator
@@ -238,24 +264,26 @@ class TestSync < ::Test::Unit::TestCase
   def _assert_dir_tree_equals(expected, actual, assert_mtime, assert_checksum, mtime_tolerance_second)
     e = Dir.entries(expected, encoding: Encoding::UTF_8).select { |name| name != '.' && name != '..' }.sort
     a = Dir.entries(actual, encoding: Encoding::UTF_8).select { |name| name != '.' && name != '..' }.sort
-    assert_equal(e, a)
+    raise "expected #{e} for #{a}" unless e == a
 
     (0...e.size).each do |i|
       epath = File.join(expected, e[i])
       apath = File.join(actual, a[i])
 
-      assert_equal(e[i], a[i])
+      raise "expected #{e[i]} for #{a[i]}" unless e[i] == a[i]
       if File.directory?(epath)
-        assert_true(File.directory?(apath))
+        raise "expected directory but not: #{apath}" unless File.directory?(apath)
         _assert_dir_tree_equals(epath, apath, assert_mtime, assert_checksum, mtime_tolerance_second)
       else
-        assert_false(File.directory?(apath))
-        assert_true((File.mtime(epath).to_i - File.mtime(apath).to_i).abs <= mtime_tolerance_second, "expected #{File.mtime(epath)} (#{epath}) for #{File.mtime(apath)} (#{apath})") if assert_mtime
+        raise "expected not a directory: #{apath}" if File.directory?(apath)
+        if assert_mtime
+          raise "expected #{File.mtime(epath)} (#{epath}) for #{File.mtime(apath)} (#{apath})" if (File.mtime(epath).to_i - File.mtime(apath).to_i).abs > mtime_tolerance_second
+        end
 
         if assert_checksum
           expected_checksum = ::Digest::MD5.file(epath).to_s
           actual_checksum = ::Digest::MD5.file(apath).to_s
-          assert_equal(expected_checksum, actual_checksum, "expected #{expected_checksum} (#{epath}) for #{actual_checksum} (#{apath})")
+          raise "expected #{expected_checksum} (#{epath}) for #{actual_checksum} (#{apath})" unless expected_checksum == actual_checksum
         end
       end
     end
@@ -267,7 +295,7 @@ class TestSync < ::Test::Unit::TestCase
     # GDSync::Sync.#run behaves as if '--inplace' option is set.
     # And, if --inplace is not set, MSYS's rsync sometimes report permission errors like:
     #   sync: rename "/c/Users/name/AppData/Local/Temp/gdsync_sync_test/d20160623-1104-vut8fo/rsync_dest/fixtures/sub/.edited_remote_file.txt.014356" -> "fixtures/sub/edited_remote_file.txt": Permission denied (13)
-    options << '--inplace'
+    options = options + ['--inplace']
 
     relative_dest_path = Pathname.new(File.absolute_path(dest)).relative_path_from(Pathname.new(cwd))
     relative_src_path = Pathname.new(File.absolute_path(src)).relative_path_from(Pathname.new(cwd))
@@ -347,5 +375,19 @@ class TestSync < ::Test::Unit::TestCase
         next
       end
     end
+  end
+
+  def _cp_r(src, dest)
+    raise "src and dest should be directory" unless File.directory?(src) && File.directory?(dest)
+    FileUtils.cp_r(src, dest)
+
+    Dir.glob("#{src}/**/*")
+       .reject { |e| File.directory?(e) }
+       .each do |e|
+         relpath = Pathname.new(e).relative_path_from(Pathname.new(src))
+         dest_file = File.join(dest, File.basename(src), relpath)
+         mtime = File.mtime(e)
+         File.utime(mtime, mtime, dest_file)
+       end
   end
 end
