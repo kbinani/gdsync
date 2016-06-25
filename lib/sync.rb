@@ -43,7 +43,7 @@ module GDSync
       @src.each do |src_string|
         src = _lookup_file_or_dir(src_string)
 
-        raise "file or directory '#{_}' not found" if src.nil?
+        raise "file or directory '#{src_string}' not found" if src.nil?
 
         if src.dir?
           if @option.recursive? || @option.dirs?
