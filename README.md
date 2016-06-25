@@ -1,9 +1,9 @@
 # gdsync - `rsync` like file sync tool
 
-===========
-
 [![Build Status](https://travis-ci.org/kbinani/gdsync.svg?branch=master)](https://travis-ci.org/kbinani/gdsync)
+[![Build Status](https://ci.appveyor.com/api/projects/status/b1ky64n0wtdqie3f/branch/master?svg=true)](https://ci.appveyor.com/project/kbinani/gdsync/branch/master)
 [![Coverage Status](https://coveralls.io/repos/github/kbinani/gdsync/badge.svg?branch=master)](https://coveralls.io/github/kbinani/gdsync?branch=master)
+[![license](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000)]()
 
 # Installation
 
