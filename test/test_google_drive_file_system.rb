@@ -38,6 +38,7 @@ class TestGoogleDriveFileSystem < ::Test::Unit::TestCase
 
     found_dir_trailing_slash = @fs.find('googledrive://gdsync/test/google_drive_file_system_test/')
     assert_not_nil(found_dir_trailing_slash)
+    assert_equal('googledrive://gdsync/test/google_drive_file_system_test/', found_dir_trailing_slash.path)
     assert_equal('google_drive_file_system_test', found_dir_trailing_slash.title)
   end
 

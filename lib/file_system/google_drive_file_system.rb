@@ -213,7 +213,8 @@ module GDSync
       return nil unless file.start_with?(URL_SCHEMA)
       return Dir.new(self, @session.root_collection, URL_SCHEMA) if file == URL_SCHEMA
 
-      file = file.slice(0, file.size - 1) if file.end_with?('/')
+      end_with_slash = file.end_with?('/')
+      file = file.slice(0, file.size - 1) if end_with_slash
       path_elements = file.split(URL_SCHEMA)[1].split('/')
       path = URL_SCHEMA
 
@@ -228,7 +229,7 @@ module GDSync
         end
 
         if file == path
-          return Dir.new(self, child, path) unless child.nil?
+          return Dir.new(self, child, "#{path}#{end_with_slash ? '/' : ''}") unless child.nil?
 
           # directory not found. then search file
           child = call_api(collection, :file_by_title, path_element)
